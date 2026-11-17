@@ -391,7 +391,7 @@ export function RosterBoard() {
                               className="bar"
                               data-tone={a.tone}
                               data-edge={edgeFor(a.employee, a.status)}
-                              data-on={on ? "true" : "false"}
+                              data-on={on ? "true" : undefined}
                               style={
                                 {
                                   "--i": a.lane,
@@ -399,8 +399,9 @@ export function RosterBoard() {
                                   width: box.width,
                                 } as CSSProperties
                               }
-                              aria-pressed={on}
+                              aria-pressed={on ? true : undefined}
                               aria-label={`${a.employee}, ${a.fn}, ${a.role}`}
+                              title={a.employee}
                               onClick={() => setSelectedId(on ? null : a.id)}
                             >
                               <span className="bar-name">{a.employee}</span>
