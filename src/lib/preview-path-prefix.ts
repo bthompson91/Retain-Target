@@ -36,6 +36,12 @@ export function prefixRewrite(prefix: string): LocationRewrite {
 
 export function previewPathRewrite(): LocationRewrite | undefined {
   if (typeof window === "undefined") return undefined;
-  const prefix = previewPathPrefix(window.location.hostname, window.location.pathname);
+  const host = window.location.hostname.toLowerCase();
+  if (host.endsWith(".github.io")) {
+    const repo = "/Retain-Target";
+    const path = window.location.pathname;
+    if (path === repo || path.startsWith(`${repo}/`)) return prefixRewrite(repo);
+  }
+  const prefix = previewPathPrefix(host, window.location.pathname);
   return prefix ? prefixRewrite(prefix) : undefined;
 }
