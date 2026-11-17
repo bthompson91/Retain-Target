@@ -16,14 +16,17 @@ export type ParsedRoster = {
   dayCount: number;
   shiftCount: number;
   fileName: string;
+  warnings: string[];
 };
 
-function parseCsv(text: string): string[][] {
+const GUID = /^\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?$/i;
+
+function parseCsv(text: string, delimiter = ","): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
   let quoted = false;
-  const source = text.replace(/^\uFEFF/, "");
+  const source = text.replace(/^\uFEFF/, "").replace(/^sep=,\s*/i, "");
   for (let i = 0; i < source.length; i++) {
     const char = source[i];
     if (quoted) {
@@ -39,8 +42,8 @@ function parseCsv(text: string): string[][] {
       }
       continue;
     }
-    if (char === '"') quoted = true;
-    else if (char === ",") {
+    if (char === '"' && cell.length === 0) quoted = true;
+    else if (char === delimiter) {
       row.push(cell);
       cell = "";
     } else if (char === "\n") {
@@ -70,9 +73,40 @@ function statusFor(role: string): ShiftStatus {
   return /cancel/i.test(role) ? "unconfirmed" : "confirmed";
 }
 
+function isBooleanToken(value: string): boolean {
+  return /^(true|false)$/i.test(value);
+}
+
+function isGuid(value: string): boolean {
+  return GUID.test(value);
+}
+
+/** Values that are not a person: Excel booleans and bare ids. */
+function isPlaceholderName(value: string): boolean {
+  return isBooleanToken(value) || isGuid(value);
+}
+
+/** Values that landed in the department column but are not a department. */
+function isPlaceholderDepartment(value: string): boolean {
+  return (
+    isPlaceholderName(value) ||
+    /\blaptops?\b/i.test(value) ||
+    /^\d+\s*x\b/i.test(value) ||
+    /^[A-Z]{2,4}$/.test(value)
+  );
+}
+
 export function parseRosterCsv(text: string, fileName = "roster.csv"): ParsedRoster {
-  const table = parseCsv(text);
+  let table = parseCsv(text);
   if (!table.length) throw new Error("That CSV is empty.");
+  const firstLine = text.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "";
+  const commaHeader = table[0].map((value) => value.trim().toLowerCase());
+  if (
+    !commaHeader.includes("department") &&
+    (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0)
+  ) {
+    table = parseCsv(text, ";");
+  }
   const header = table[0].map((value) => value.trim().toLowerCase());
   const at = (name: string) => header.indexOf(name);
   const col = {
@@ -93,12 +127,25 @@ export function parseRosterCsv(text: string, fileName = "roster.csv"): ParsedRos
 
   const cell = (row: string[], index: number) => (row[index] ?? "").trim();
   const drafts: Array<Assignment & { dept: string; event: string }> = [];
+  const warnings: string[] = [];
+  let hiddenNotes = 0;
+  const warn = (message: string) => {
+    if (warnings.length < 8) warnings.push(message);
+    else hiddenNotes += 1;
+  };
 
-  for (const row of table.slice(1)) {
+  table.slice(1).forEach((row, index) => {
+    const line = index + 2;
+    if (row.length !== header.length) {
+      warn(`Row ${line} has ${row.length} columns, header has ${header.length}.`);
+    }
     const date = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(cell(row, col.date));
     const startClock = clock(cell(row, col.start));
     const endClock = clock(cell(row, col.end));
-    if (!date || !startClock || !endClock) continue;
+    if (!date || !startClock || !endClock) {
+      warn(`Row ${line} skipped: date or time is not a shift.`);
+      return;
+    }
     const year = Number(date[3]);
     const month = Number(date[2]) - 1;
     const day = Number(date[1]);
@@ -115,20 +162,34 @@ export function parseRosterCsv(text: string, fileName = "roster.csv"): ParsedRos
     } else {
       end = melbourne(year, month, day, endClock.hour, endClock.minute);
     }
+    const rawEmployee = cell(row, col.employee);
+    const rawDept = cell(row, col.department);
+    let employee = rawEmployee || "Unassigned";
+    let dept = rawDept || "No department";
+    if (rawEmployee && isPlaceholderName(rawEmployee)) {
+      warn(`Row ${line}: ignored employee "${rawEmployee}".`);
+      employee = "Unassigned";
+    }
+    if (rawDept && isPlaceholderDepartment(rawDept)) {
+      warn(`Row ${line}: ignored department "${rawDept}".`);
+      dept = "No department";
+    }
     const role = cell(row, col.role) || "—";
     drafts.push({
       id: `s${drafts.length}`,
-      employee: cell(row, col.employee) || "Unassigned",
+      employee,
       fn: cell(row, col.fn),
       role,
       tone: toneForRole(role),
       status: statusFor(role),
       start,
       end,
-      dept: cell(row, col.department) || "No department",
+      dept,
       event: cell(row, col.event) || "No event",
     });
-  }
+  });
+
+  if (hiddenNotes) warnings.push(`${hiddenNotes} more parse notes.`);
 
   if (!drafts.length) throw new Error("No shifts in that CSV.");
 
@@ -174,5 +235,5 @@ export function parseRosterCsv(text: string, fileName = "roster.csv"): ParsedRos
         }),
     }));
 
-  return { departments, origin, dayCount, shiftCount: drafts.length, fileName };
+  return { departments, origin, dayCount, shiftCount: drafts.length, fileName, warnings };
 }

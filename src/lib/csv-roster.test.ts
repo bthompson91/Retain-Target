@@ -67,3 +67,32 @@ describe("windowForRange", () => {
     assert.equal(isoMelDay(window.origin), "2026-11-18");
   });
 });
+
+describe("parse problems", () => {
+  const csv = `Date,Start Time,End Time,Employee Roster Name,Department,Event,Function,Role
+16/11/2026,14:00,18:00,False,TIO,1001 - Sample,Set Up,Audio L2
+16/11/2026,15:00,18:00,{7CFAE39E-E5ED-4F5D-B490-5260AFF82D4B},3x Laptops,1001 - Sample,Set Up,Audio L2
+16/11/2026,14:00,18:00,Alex "Al" Example,VIC-Example,1001 - Sample,Set Up,Audio L2
+not-a-date,14:00,18:00,Alex Example,VIC-Example,1001 - Sample,Set Up,Audio L2
+`;
+
+  it("drops boolean names, ids, and values that are not departments", () => {
+    const roster = parseRosterCsv(csv);
+    const shifts = roster.departments.flatMap((dept) =>
+      dept.events.flatMap((event) => event.assignments.map((shift) => ({ ...shift, dept: dept.name }))),
+    );
+    assert.equal(shifts.length, 3);
+    assert.ok(shifts.every((shift) => shift.employee !== "False"));
+    assert.ok(shifts.every((shift) => !shift.employee.includes("7CFAE39E")));
+    assert.deepEqual(
+      roster.departments.map((dept) => dept.name),
+      ["No department", "VIC-Example"],
+    );
+    const named = shifts.find((shift) => shift.employee.startsWith("Alex"));
+    assert.equal(named?.employee, 'Alex "Al" Example');
+    assert.ok(roster.warnings.some((note) => note.includes("False")));
+    assert.ok(roster.warnings.some((note) => note.includes("TIO")));
+    assert.ok(roster.warnings.some((note) => note.includes("3x Laptops")));
+    assert.ok(roster.warnings.some((note) => note.includes("skipped")));
+  });
+});

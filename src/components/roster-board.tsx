@@ -226,7 +226,7 @@ export function RosterBoard() {
                       view.filtered && visibleCount !== parsed.shiftCount
                         ? `${visibleCount.toLocaleString("en-AU")} of ${parsed.shiftCount.toLocaleString("en-AU")}`
                         : parsed.shiftCount.toLocaleString("en-AU")
-                    } shifts`
+                    } shifts${parsed.warnings.length ? ` · ${parsed.warnings.length} parse notes` : ""}`
                   : "No roster loaded")}
             </p>
           </div>
@@ -444,11 +444,13 @@ export function RosterBoard() {
         ) : (
           <p className="detail-hint">
             {loadError ??
-              (parsed
-                ? visibleCount === 0 && view.filtered
-                  ? "No shifts in this date range."
-                  : "Departments fold with +. Zoom goes down to the hour. Today is blue. Tap a shift for the times."
-                : "The board is empty. Load a TimeTarget CSV.")}
+              (parsed?.warnings.length
+                ? parsed.warnings.join(" ")
+                : parsed
+                  ? visibleCount === 0 && view.filtered
+                    ? "No shifts in this date range."
+                    : "Departments fold with +. Zoom goes down to the hour. Today is blue. Tap a shift for the times."
+                  : "The board is empty. Load a TimeTarget CSV.")}
           </p>
         )}
       </footer>
