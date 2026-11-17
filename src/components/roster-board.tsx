@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { buildRoster } from "@/data/sample-roster";
+import { parseRosterCsv, type ParsedRoster } from "@/lib/csv-roster";
 import {
   ZOOM,
   eachDay,
@@ -45,21 +45,25 @@ function hoursToPx(hours: number, zoom: Zoom): number {
 
 export function RosterBoard() {
   const now = useMemo(() => new Date(), []);
-  const weekStart = useMemo(() => startOfMelWeek(now), [now]);
-  const weekEnd = useMemo(() => new Date(weekStart.getTime() + 7 * 86_400_000), [weekStart]);
-  const todayStart = useMemo(() => startOfMelDay(now), [now]);
-  const todayIndex = Math.round((todayStart.getTime() - weekStart.getTime()) / 86_400_000);
-
   const [zoom, setZoom] = useState<Zoom>("hour");
-  const [closed, setClosed] = useState<string[]>(["base"]);
+  const [closed, setClosed] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [nowX, setNowX] = useState<number | null>(null);
+  const [parsed, setParsed] = useState<ParsedRoster | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const weekStart = parsed?.origin ?? startOfMelWeek(now);
+  const dayCount = parsed?.dayCount ?? 7;
+  const weekEnd = useMemo(() => new Date(weekStart.getTime() + dayCount * 86_400_000), [weekStart, dayCount]);
+  const todayStart = useMemo(() => startOfMelDay(now), [now]);
+  const todayIndex = Math.round((todayStart.getTime() - weekStart.getTime()) / 86_400_000);
+  const todayInRange = todayIndex >= 0 && todayIndex < dayCount;
 
   const scrollerRef = useRef<HTMLDivElement>(null);
   const anchorHours = useRef<number | null>(null);
   const booted = useRef(false);
 
-  const roster = useMemo(() => buildRoster(weekStart, todayIndex), [weekStart, todayIndex]);
+  const roster = parsed?.departments ?? [];
 
   const laid = useMemo<LaidDept[]>(
     () =>
@@ -96,10 +100,10 @@ export function RosterBoard() {
 
   const z = ZOOM[zoom];
   const dayPx = (24 / z.slotHours) * z.slotPx;
-  const timelinePx = dayPx * 7;
-  const todayLeft = todayIndex * dayPx;
-  const days = eachDay(weekStart);
-  const slots = zoom === "day" ? [] : eachSlot(weekStart, zoom);
+  const timelinePx = dayPx * dayCount;
+  const todayLeft = todayInRange ? todayIndex * dayPx : -dayPx;
+  const days = eachDay(weekStart, dayCount);
+  const slots = zoom === "day" ? [] : eachSlot(weekStart, zoom, dayCount);
   const sheetStyle = {
     "--slot": `${z.slotPx}px`,
     "--day": `${dayPx}px`,
@@ -116,14 +120,16 @@ export function RosterBoard() {
     if (!el) return;
 
     if (!booted.current) {
+      if (!parsed) return;
       booted.current = true;
       const narrow = window.innerWidth < 720;
       const next: Zoom = narrow ? "qday" : "hour";
       const label = el.querySelector<HTMLElement>(".corner")?.offsetWidth ?? 0;
       const spec = ZOOM[next];
       const visibleHours = ((el.clientWidth - label) / spec.slotPx) * spec.slotHours;
-      const hours =
-        visibleHours >= 18
+      const hours = !todayInRange
+        ? 0
+        : visibleHours >= 18
           ? Math.max(0, todayIndex * 24 - Math.min(6, visibleHours - 16))
           : Math.max(0, todayIndex * 24 + 8);
       anchorHours.current = hours;
@@ -135,7 +141,40 @@ export function RosterBoard() {
 
     if (anchorHours.current == null) return;
     el.scrollLeft = hoursToPx(anchorHours.current, zoom);
-  }, [todayIndex, zoom]);
+  }, [todayIndex, todayInRange, zoom, parsed]);
+
+  useEffect(() => {
+    let cancel = false;
+    fetch("/roster.csv")
+      .then((response) => {
+        if (!response.ok) throw new Error("Couldn't read the roster.");
+        return response.text();
+      })
+      .then((text) => {
+        if (!cancel) setParsed(parseRosterCsv(text, "Timetarget Roster Export 18-11-2026.csv"));
+      })
+      .catch((error: unknown) => {
+        if (!cancel) setLoadError(error instanceof Error ? error.message : "Couldn't read the roster.");
+      });
+    return () => {
+      cancel = true;
+    };
+  }, []);
+
+  function loadFile(file: File) {
+    file
+      .text()
+      .then((text) => {
+        setParsed(parseRosterCsv(text, file.name));
+        setLoadError(null);
+        setSelectedId(null);
+        setClosed([]);
+        booted.current = false;
+      })
+      .catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : "Couldn't read that CSV.");
+      });
+  }
 
   function changeZoom(next: Zoom) {
     const el = scrollerRef.current;
@@ -172,7 +211,11 @@ export function RosterBoard() {
           <span className="brand-mark" aria-hidden="true" />
           <div>
             <h1>Retain Target</h1>
-            <p>Sample week {formatWeek(weekStart, weekEnd)} · CSV next</p>
+            <p>
+              {parsed
+                ? `${formatWeek(weekStart, weekEnd)} · ${parsed.shiftCount.toLocaleString("en-AU")} shifts`
+                : (loadError ?? "Loading roster…")}
+            </p>
           </div>
         </div>
         <div className="controls">
@@ -189,6 +232,18 @@ export function RosterBoard() {
               </button>
             ))}
           </div>
+          <label className="file-btn" title={parsed?.fileName ?? "Upload a TimeTarget CSV"}>
+            CSV
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                if (file) loadFile(file);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
           <button type="button" className="today-btn" onClick={goToday}>
             Today
           </button>
@@ -294,9 +349,7 @@ export function RosterBoard() {
                               onClick={() => setSelectedId(on ? null : a.id)}
                             >
                               <span className="bar-name">{a.employee}</span>
-                              <span className="bar-meta">
-                                {a.fn} · {a.role}
-                              </span>
+                              <span className="bar-meta">{a.fn ? `${a.fn} · ${a.role}` : a.role}</span>
                             </button>
                           );
                         })}
@@ -316,7 +369,7 @@ export function RosterBoard() {
             <div className="detail-copy">
               <p className="detail-name">{selected.employee}</p>
               <p className="detail-role">
-                {selected.fn} · {selected.role}
+                {selected.fn ? `${selected.fn} · ${selected.role}` : selected.role}
               </p>
               <p className="detail-meta">
                 {selected.event} · {selected.dept}
@@ -334,9 +387,11 @@ export function RosterBoard() {
           </>
         ) : (
           <p className="detail-hint">
-            Sample roster, not your file yet. Departments fold with +, zoom goes down to the hour.
-            Today is blue; every other hour or day alternates grey. Tap a shift — name on the first
-            line, function and role on the second.
+            {loadError
+              ? loadError
+              : parsed
+                ? "Departments fold with +. Zoom goes down to the hour. Today is blue. Tap a shift for the times."
+                : "Loading roster…"}
           </p>
         )}
       </footer>

@@ -131,7 +131,8 @@
 }
 
 .zoom-btn,
-.today-btn {
+.today-btn,
+.file-btn {
   min-height: 2.75rem;
   padding: 0 0.8rem;
   font-size: 0.875rem;
@@ -153,14 +154,30 @@
   color: var(--color-on-accent);
 }
 
-.today-btn {
+.today-btn,
+.file-btn {
   border: 1px solid var(--color-accent);
   background: var(--color-paper);
   color: var(--color-accent);
 }
 
+.file-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.file-btn input {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
 .zoom-btn:focus-visible,
 .today-btn:focus-visible,
+.file-btn:focus-within,
 .dept-label:focus-visible,
 .bar:focus-visible {
   outline: 2px solid var(--color-accent);

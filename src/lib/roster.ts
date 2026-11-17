@@ -125,13 +125,13 @@ export function xFor(instant: Date, origin: Date, zoom: Zoom): number {
   return (hours / z.slotHours) * z.slotPx;
 }
 
-export function eachDay(origin: Date): Date[] {
-  return Array.from({ length: 7 }, (_, i) => new Date(origin.getTime() + i * DAY_MS));
+export function eachDay(origin: Date, dayCount = 7): Date[] {
+  return Array.from({ length: dayCount }, (_, i) => new Date(origin.getTime() + i * DAY_MS));
 }
 
-export function eachSlot(origin: Date, zoom: Zoom): Date[] {
+export function eachSlot(origin: Date, zoom: Zoom, dayCount = 7): Date[] {
   const z = ZOOM[zoom];
-  const count = (7 * 24) / z.slotHours;
+  const count = (dayCount * 24) / z.slotHours;
   const step = z.slotHours * HOUR_MS;
   return Array.from({ length: count }, (_, i) => new Date(origin.getTime() + i * step));
 }
@@ -139,7 +139,7 @@ export function eachSlot(origin: Date, zoom: Zoom): Date[] {
 export function toneForRole(role: string): Tone {
   const r = role.toLowerCase();
   if (/\btechnical director\b|\btech director\b|\btd\b/.test(r)) return "director";
-  if (/\bwarehouse\b|\bdriver\b|\bloader\b/.test(r)) return "logistics";
+  if (/\bwarehouse\b|\bdriver\b|\bloader\b|\bvan\b|\btruck\b/.test(r)) return "logistics";
   if (/\bcamera\b|\bcam\b/.test(r)) return "camera";
   if (/\bdes\b/.test(r)) return "vision";
   if (/\baudio\b|\ba1\b|\ba2\b|\ba3\b|\brf\b|\bsound\b/.test(r)) return "audio";
