@@ -9,11 +9,13 @@ import {
   formatHourLabel,
   formatSpan,
   formatWeek,
+  isoMelDay,
   melParts,
   packLanes,
   slotOnDay,
   startOfMelDay,
   startOfMelWeek,
+  windowForRange,
   xFor,
   type Assignment,
   type Tone,
@@ -51,9 +53,17 @@ export function RosterBoard() {
   const [nowX, setNowX] = useState<number | null>(null);
   const [parsed, setParsed] = useState<ParsedRoster | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [rangeFrom, setRangeFrom] = useState("");
+  const [rangeTo, setRangeTo] = useState("");
 
-  const weekStart = parsed?.origin ?? startOfMelWeek(now);
-  const dayCount = parsed?.dayCount ?? 7;
+  const fullOrigin = useMemo(() => parsed?.origin ?? startOfMelWeek(now), [parsed, now]);
+  const fullDays = parsed?.dayCount ?? 7;
+  const view = useMemo(
+    () => windowForRange(fullOrigin, fullDays, rangeFrom, rangeTo),
+    [fullOrigin, fullDays, rangeFrom, rangeTo],
+  );
+  const weekStart = view.origin;
+  const dayCount = view.dayCount;
   const weekEnd = useMemo(() => new Date(weekStart.getTime() + dayCount * 86_400_000), [weekStart, dayCount]);
   const todayStart = useMemo(() => startOfMelDay(now), [now]);
   const todayIndex = Math.round((todayStart.getTime() - weekStart.getTime()) / 86_400_000);
@@ -63,29 +73,37 @@ export function RosterBoard() {
   const anchorHours = useRef<number | null>(null);
   const booted = useRef(false);
 
+  const seenWindow = useRef<string | null>(null);
+
   const roster = parsed?.departments ?? [];
 
-  const laid = useMemo<LaidDept[]>(
-    () =>
-      roster.map((dept) => ({
-        id: dept.id,
-        name: dept.name,
-        events: dept.events.map((event) => {
-          const lanes = packLanes(
-            event.assignments.map((a) => ({ start: a.start.getTime(), end: a.end.getTime() })),
-          );
-          const laneCount = lanes.length ? Math.max(...lanes) + 1 : 1;
-          return {
-            id: event.id,
-            name: event.name,
-            dept: dept.name,
-            laneCount,
-            assignments: event.assignments.map((a, i) => ({ ...a, lane: lanes[i] ?? 0 })),
-          };
-        }),
-      })),
-    [roster],
-  );
+  const { laid, visibleCount } = useMemo(() => {
+    const startMs = weekStart.getTime();
+    const endMs = startMs + dayCount * 86_400_000;
+    let visibleCount = 0;
+    const laid: LaidDept[] = [];
+    for (const dept of roster) {
+      const events: LaidEvent[] = [];
+      for (const event of dept.events) {
+        const assignments = event.assignments.filter(
+          (a) => a.end.getTime() > startMs && a.start.getTime() < endMs,
+        );
+        if (!assignments.length) continue;
+        visibleCount += assignments.length;
+        const lanes = packLanes(assignments.map((a) => ({ start: a.start.getTime(), end: a.end.getTime() })));
+        const laneCount = lanes.length ? Math.max(...lanes) + 1 : 1;
+        events.push({
+          id: event.id,
+          name: event.name,
+          dept: dept.name,
+          laneCount,
+          assignments: assignments.map((a, i) => ({ ...a, lane: lanes[i] ?? 0 })),
+        });
+      }
+      if (events.length) laid.push({ id: dept.id, name: dept.name, events });
+    }
+    return { laid, visibleCount };
+  }, [roster, weekStart, dayCount]);
 
   const selected = useMemo(() => {
     if (!selectedId) return null;
@@ -119,6 +137,10 @@ export function RosterBoard() {
     const el = scrollerRef.current;
     if (!el) return;
 
+    const windowKey = `${weekStart.getTime()}:${dayCount}`;
+    const windowChanged = seenWindow.current !== null && seenWindow.current !== windowKey;
+    seenWindow.current = windowKey;
+
     if (!booted.current) {
       booted.current = true;
       const narrow = window.innerWidth < 720;
@@ -136,11 +158,14 @@ export function RosterBoard() {
         setZoom(next);
         return;
       }
+    } else if (windowChanged) {
+      const hours = !todayInRange ? 0 : Math.max(0, todayIndex * 24 + (zoom === "day" ? 0 : 8));
+      anchorHours.current = hours;
     }
 
     if (anchorHours.current == null) return;
     el.scrollLeft = hoursToPx(anchorHours.current, zoom);
-  }, [todayIndex, todayInRange, zoom, parsed]);
+  }, [todayIndex, todayInRange, zoom, parsed, weekStart, dayCount]);
 
   function loadFile(file: File) {
     file
@@ -150,6 +175,8 @@ export function RosterBoard() {
         setLoadError(null);
         setSelectedId(null);
         setClosed([]);
+        setRangeFrom("");
+        setRangeTo("");
         booted.current = false;
       })
       .catch((error: unknown) => {
@@ -195,12 +222,58 @@ export function RosterBoard() {
             <p>
               {loadError ??
                 (parsed
-                  ? `${formatWeek(weekStart, weekEnd)} · ${parsed.shiftCount.toLocaleString("en-AU")} shifts`
+                  ? `${formatWeek(weekStart, weekEnd)} · ${
+                      view.filtered && visibleCount !== parsed.shiftCount
+                        ? `${visibleCount.toLocaleString("en-AU")} of ${parsed.shiftCount.toLocaleString("en-AU")}`
+                        : parsed.shiftCount.toLocaleString("en-AU")
+                    } shifts`
                   : "No roster loaded")}
             </p>
           </div>
         </div>
         <div className="controls">
+          <div className="dates">
+            <label>
+              From
+              <input
+                type="date"
+                value={rangeFrom}
+                min={parsed ? isoMelDay(parsed.origin) : undefined}
+                max={
+                  parsed
+                    ? isoMelDay(new Date(parsed.origin.getTime() + (parsed.dayCount - 1) * 86_400_000))
+                    : undefined
+                }
+                onChange={(event) => setRangeFrom(event.target.value)}
+              />
+            </label>
+            <label>
+              To
+              <input
+                type="date"
+                value={rangeTo}
+                min={parsed ? isoMelDay(parsed.origin) : undefined}
+                max={
+                  parsed
+                    ? isoMelDay(new Date(parsed.origin.getTime() + (parsed.dayCount - 1) * 86_400_000))
+                    : undefined
+                }
+                onChange={(event) => setRangeTo(event.target.value)}
+              />
+            </label>
+            {view.filtered && (
+              <button
+                type="button"
+                className="today-btn"
+                onClick={() => {
+                  setRangeFrom("");
+                  setRangeTo("");
+                }}
+              >
+                All
+              </button>
+            )}
+          </div>
           <div className="zoom" role="radiogroup" aria-label="Zoom">
             {ZOOMS.map((id) => (
               <button
@@ -371,7 +444,9 @@ export function RosterBoard() {
           <p className="detail-hint">
             {loadError ??
               (parsed
-                ? "Departments fold with +. Zoom goes down to the hour. Today is blue. Tap a shift for the times."
+                ? visibleCount === 0 && view.filtered
+                  ? "No shifts in this date range."
+                  : "Departments fold with +. Zoom goes down to the hour. Today is blue. Tap a shift for the times."
                 : "The board is empty. Load a TimeTarget CSV.")}
           </p>
         )}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { parseRosterCsv } from "./csv-roster.ts";
-import { edgeFor, formatClock, melParts, toneForRole } from "./roster.ts";
+import { edgeFor, formatClock, isoMelDay, melParts, toneForRole, windowForRange } from "./roster.ts";
 
 const csv = `Date,Start Time,End Time,Employee Roster Name,Department,Event,Function,Role
 16/11/2026,14:00,18:00,Alex Example,VIC-Example,1001 - Sample Event,Set Up,Audio L2
@@ -47,5 +47,23 @@ describe("parseRosterCsv", () => {
     assert.ok(overnight);
     assert.equal(formatClock(overnight.end), "01:00");
     assert.equal(melParts(overnight.end).day, 17);
+  });
+});
+
+describe("windowForRange", () => {
+  const origin = new Date(Date.UTC(2026, 10, 15, 13));
+
+  it("stays on the full span when both dates are empty", () => {
+    const window = windowForRange(origin, 8, "", "");
+    assert.equal(window.filtered, false);
+    assert.equal(window.dayCount, 8);
+    assert.equal(window.origin, origin);
+  });
+
+  it("keeps an inclusive from/to range", () => {
+    const window = windowForRange(origin, 30, "2026-11-18", "2026-11-19");
+    assert.equal(window.filtered, true);
+    assert.equal(window.dayCount, 2);
+    assert.equal(isoMelDay(window.origin), "2026-11-18");
   });
 });

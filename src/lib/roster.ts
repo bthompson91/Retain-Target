@@ -111,6 +111,50 @@ export function formatWeek(start: Date, endExclusive: Date): string {
   return `${a.day} ${MON[a.month]} – ${last.day} ${MON[last.month]} ${last.year}`;
 }
 
+export function isoMelDay(instant: Date): string {
+  const p = melParts(instant);
+  const month = String(p.month + 1).padStart(2, "0");
+  const day = String(p.day).padStart(2, "0");
+  return `${p.year}-${month}-${day}`;
+}
+
+function parseIsoDay(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return melbourne(year, month - 1, day);
+}
+
+/** Empty from/to means the whole roster. Dates are Melbourne civil days, end inclusive. */
+export function windowForRange(
+  origin: Date,
+  dayCount: number,
+  from: string,
+  to: string,
+): { origin: Date; dayCount: number; filtered: boolean } {
+  const fromDay = parseIsoDay(from);
+  const toDay = parseIsoDay(to);
+  if (!fromDay && !toDay) return { origin, dayCount, filtered: false };
+
+  const fullEnd = origin.getTime() + dayCount * DAY_MS;
+  let start = fromDay ? fromDay.getTime() : origin.getTime();
+  let end = toDay ? toDay.getTime() + DAY_MS : fullEnd;
+  if (!toDay && end <= start) end = start + DAY_MS;
+  if (!fromDay && end <= start) start = end - DAY_MS;
+  if (fromDay && toDay && end <= start) {
+    start = toDay.getTime();
+    end = fromDay.getTime() + DAY_MS;
+  }
+  return {
+    origin: new Date(start),
+    dayCount: Math.max(1, Math.round((end - start) / DAY_MS)),
+    filtered: true,
+  };
+}
+
 export function formatSpan(start: Date, end: Date): string {
   const a = melParts(start);
   const b = melParts(end);
