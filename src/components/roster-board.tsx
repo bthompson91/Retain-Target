@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { parseRosterCsv, type ParsedRoster } from "@/lib/csv-roster";
+import rosterCsv from "../../public/roster.csv?raw";
 import {
   ZOOM,
   eachDay,
@@ -13,7 +14,6 @@ import {
   packLanes,
   slotOnDay,
   startOfMelDay,
-  startOfMelWeek,
   xFor,
   type Assignment,
   type Tone,
@@ -37,6 +37,7 @@ type LaidDept = {
 };
 
 const ZOOMS: Zoom[] = ["day", "qday", "hour"];
+const bundledRoster = parseRosterCsv(rosterCsv, "Timetarget Roster Export 18-11-2026.csv");
 
 function hoursToPx(hours: number, zoom: Zoom): number {
   const z = ZOOM[zoom];
@@ -49,11 +50,11 @@ export function RosterBoard() {
   const [closed, setClosed] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [nowX, setNowX] = useState<number | null>(null);
-  const [parsed, setParsed] = useState<ParsedRoster | null>(null);
+  const [parsed, setParsed] = useState<ParsedRoster>(bundledRoster);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const weekStart = parsed?.origin ?? startOfMelWeek(now);
-  const dayCount = parsed?.dayCount ?? 7;
+  const weekStart = parsed.origin;
+  const dayCount = parsed.dayCount;
   const weekEnd = useMemo(() => new Date(weekStart.getTime() + dayCount * 86_400_000), [weekStart, dayCount]);
   const todayStart = useMemo(() => startOfMelDay(now), [now]);
   const todayIndex = Math.round((todayStart.getTime() - weekStart.getTime()) / 86_400_000);
@@ -63,7 +64,7 @@ export function RosterBoard() {
   const anchorHours = useRef<number | null>(null);
   const booted = useRef(false);
 
-  const roster = parsed?.departments ?? [];
+  const roster = parsed.departments;
 
   const laid = useMemo<LaidDept[]>(
     () =>
@@ -120,7 +121,6 @@ export function RosterBoard() {
     if (!el) return;
 
     if (!booted.current) {
-      if (!parsed) return;
       booted.current = true;
       const narrow = window.innerWidth < 720;
       const next: Zoom = narrow ? "qday" : "hour";
@@ -142,24 +142,6 @@ export function RosterBoard() {
     if (anchorHours.current == null) return;
     el.scrollLeft = hoursToPx(anchorHours.current, zoom);
   }, [todayIndex, todayInRange, zoom, parsed]);
-
-  useEffect(() => {
-    let cancel = false;
-    fetch("/roster.csv")
-      .then((response) => {
-        if (!response.ok) throw new Error("Couldn't read the roster.");
-        return response.text();
-      })
-      .then((text) => {
-        if (!cancel) setParsed(parseRosterCsv(text, "Timetarget Roster Export 18-11-2026.csv"));
-      })
-      .catch((error: unknown) => {
-        if (!cancel) setLoadError(error instanceof Error ? error.message : "Couldn't read the roster.");
-      });
-    return () => {
-      cancel = true;
-    };
-  }, []);
 
   function loadFile(file: File) {
     file
@@ -212,9 +194,8 @@ export function RosterBoard() {
           <div>
             <h1>Retain Target</h1>
             <p>
-              {parsed
-                ? `${formatWeek(weekStart, weekEnd)} · ${parsed.shiftCount.toLocaleString("en-AU")} shifts`
-                : (loadError ?? "Loading roster…")}
+              {loadError ??
+                `${formatWeek(weekStart, weekEnd)} · ${parsed.shiftCount.toLocaleString("en-AU")} shifts`}
             </p>
           </div>
         </div>
@@ -232,7 +213,7 @@ export function RosterBoard() {
               </button>
             ))}
           </div>
-          <label className="file-btn" title={parsed?.fileName ?? "Upload a TimeTarget CSV"}>
+          <label className="file-btn" title={parsed.fileName}>
             CSV
             <input
               type="file"
@@ -387,11 +368,8 @@ export function RosterBoard() {
           </>
         ) : (
           <p className="detail-hint">
-            {loadError
-              ? loadError
-              : parsed
-                ? "Departments fold with +. Zoom goes down to the hour. Today is blue. Tap a shift for the times."
-                : "Loading roster…"}
+            {loadError ??
+              "Departments fold with +. Zoom goes down to the hour. Today is blue. Tap a shift for the times."}
           </p>
         )}
       </footer>

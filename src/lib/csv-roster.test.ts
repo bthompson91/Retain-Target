@@ -24,6 +24,8 @@ describe("parseRosterCsv", () => {
     const cancelled = shifts.filter((shift) => shift.status === "unconfirmed");
     assert.equal(open.length, 98);
     assert.equal(cancelled.length, 22);
+    assert.ok(cancelled.every((shift) => shift.tone === "cancelled"));
+    assert.equal(toneForRole("Cancelled Shift - UNPAID"), "cancelled");
     assert.equal(toneForRole("AV Technician"), "av");
     assert.equal(toneForRole("Audio L2"), "audio");
     assert.equal(toneForRole("Vision L2"), "vision");

@@ -29,6 +29,8 @@
   --color-bar-logistics-ink: #f7f3ff;
   --color-bar-director: #8e8e8e;
   --color-bar-director-ink: #1c1916;
+  --color-bar-cancelled: #3a3a3a;
+  --color-bar-cancelled-ink: #f4f4f4;
   --color-bar-camera: #149e9a;
   --color-bar-camera-ink: #f3fffe;
   --color-bar-av: #f6e7a1;
@@ -533,6 +535,11 @@
   color: var(--color-bar-director-ink);
 }
 
+.bar[data-tone="cancelled"] {
+  background: var(--color-bar-cancelled);
+  color: var(--color-bar-cancelled-ink);
+}
+
 .bar[data-tone="camera"] {
   background: var(--color-bar-camera);
   color: var(--color-bar-camera-ink);
@@ -603,6 +610,7 @@
 .swatch[data-tone="lighting"] { background: var(--color-bar-lighting); }
 .swatch[data-tone="logistics"] { background: var(--color-bar-logistics); }
 .swatch[data-tone="director"] { background: var(--color-bar-director); }
+.swatch[data-tone="cancelled"] { background: var(--color-bar-cancelled); }
 .swatch[data-tone="camera"] { background: var(--color-bar-camera); }
 .swatch[data-tone="av"] { background: var(--color-bar-av); }
 .swatch[data-tone="other"] { background: var(--color-bar-other); }
