@@ -139,7 +139,7 @@ export function eachSlot(origin: Date, zoom: Zoom, dayCount = 7): Date[] {
 
 export function toneForRole(role: string): Tone {
   const r = role.toLowerCase();
-  if (/cancelled\s+shift/.test(r)) return "cancelled";
+  if (/cancelled\s+shift/.test(r) || /\brdo\b/.test(r)) return "cancelled";
   if (/\btechnical director\b|\btech director\b|\btd\b/.test(r)) return "director";
   if (/\bwarehouse\b|\bdriver\b|\bloader\b|\bvan\b|\btruck\b/.test(r)) return "logistics";
   if (/\bcamera\b|\bcam\b/.test(r)) return "camera";

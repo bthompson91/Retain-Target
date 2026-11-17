@@ -25,4 +25,5 @@ Each shift shows the employee, then function and role.
 | Technical director | Grey |
 | Camera | Teal |
 | AV | Light yellow |
+| Cancelled shift, RDO | Dark grey |
 | Anything else | White |

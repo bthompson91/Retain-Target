@@ -33,6 +33,8 @@ describe("parseRosterCsv", () => {
     assert.equal(cancelled.length, 1);
     assert.equal(cancelled[0].tone, "cancelled");
     assert.equal(cancelled[0].status, "unconfirmed");
+    assert.equal(toneForRole("Cancelled Shift - UNPAID"), "cancelled");
+    assert.equal(toneForRole("RDO"), "cancelled");
     assert.equal(toneForRole("Audio L2"), "audio");
     assert.equal(toneForRole("Vision L2"), "vision");
     assert.equal(toneForRole("Lighting L2"), "lighting");
