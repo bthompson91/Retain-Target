@@ -1,6 +1,6 @@
 # Retain Target
 
-Crew planning board. Upload a CSV later — this commit is the mock roster.
+Crew planning board. The chart stays empty until you load a TimeTarget CSV.
 
 The published mock is [bthompson91.github.io/Retain-Target](https://bthompson91.github.io/Retain-Target/). GitHub Pages serves the `docs/` folder from `main`.
 
