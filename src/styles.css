@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Liberation Sans", "Helvetica Neue", "Segoe UI", sans-serif;
-  --font-mono: "Liberation Mono", ui-monospace, monospace;
+  --font-sans: "DotGothic16", "Liberation Sans", sans-serif;
+  --font-mono: "DotGothic16", "Liberation Mono", monospace;
 
   --color-ink: #1c1916;
   --color-muted: #5e584f;
@@ -51,6 +51,9 @@
     background: var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-sans);
+    font-weight: 400;
+    -webkit-font-smoothing: none;
+    -moz-osx-font-smoothing: unset;
   }
 
   button:not(:disabled),
