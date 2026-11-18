@@ -23,7 +23,7 @@ import {
   type Zoom,
 } from "@/lib/roster";
 
-type LaidAssignment = Assignment & { lane: number; eventName: string };
+type LaidAssignment = Assignment & { lane: number; eventName: string; deptName: string };
 
 type LaidEvent = {
   id: string;
@@ -99,7 +99,7 @@ export function RosterBoard() {
       id: string,
       name: string,
       dept: string,
-      assignments: Array<Assignment & { eventName: string }>,
+      assignments: Array<Assignment & { eventName: string; deptName: string }>,
     ): LaidEvent | null => {
       if (!assignments.length) return null;
       visibleCount += assignments.length;
@@ -113,36 +113,35 @@ export function RosterBoard() {
         assignments: assignments.map((a, i) => ({ ...a, lane: lanes[i] ?? 0 })),
       };
     };
-    const departments = [...roster].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-    for (const dept of departments) {
-      const events: LaidEvent[] = [];
-      if (rotated) {
-        const byPerson = new Map<string, Array<Assignment & { eventName: string }>>();
+    if (rotated) {
+      const byPerson = new Map<string, Array<Assignment & { eventName: string; deptName: string }>>();
+      for (const dept of roster) {
         for (const event of dept.events) {
           for (const assignment of event.assignments) {
             if (assignment.end.getTime() <= startMs || assignment.start.getTime() >= endMs) continue;
             const list = byPerson.get(assignment.employee) ?? [];
-            list.push({ ...assignment, eventName: event.name });
+            list.push({ ...assignment, eventName: event.name, deptName: dept.name });
             byPerson.set(assignment.employee, list);
           }
         }
-        for (const name of [...byPerson.keys()].sort((a, b) => {
-          const openA = /^unassigned$/i.test(a);
-          const openB = /^unassigned$/i.test(b);
-          if (openA !== openB) return openA ? 1 : -1;
-          return a.localeCompare(b, undefined, { sensitivity: "base" });
-        })) {
-          const row = pack(`${dept.id}\u0000${name}`, name, dept.name, byPerson.get(name) ?? []);
-          if (row) events.push(row);
-        }
-      } else {
-        for (const event of dept.events) {
-          const assignments = event.assignments
-            .filter((a) => a.end.getTime() > startMs && a.start.getTime() < endMs)
-            .map((a) => ({ ...a, eventName: event.name }));
-          const row = pack(event.id, event.name, dept.name, assignments);
-          if (row) events.push(row);
-        }
+      }
+      const events: LaidEvent[] = [];
+      for (const name of [...byPerson.keys()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))) {
+        const row = pack(name, name, name, byPerson.get(name) ?? []);
+        if (row) events.push(row);
+      }
+      if (events.length) laid.push({ id: "people", name: "", events });
+      return { laid, visibleCount };
+    }
+    const departments = [...roster].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    for (const dept of departments) {
+      const events: LaidEvent[] = [];
+      for (const event of dept.events) {
+        const assignments = event.assignments
+          .filter((a) => a.end.getTime() > startMs && a.start.getTime() < endMs)
+          .map((a) => ({ ...a, eventName: event.name, deptName: dept.name }));
+        const row = pack(event.id, event.name, dept.name, assignments);
+        if (row) events.push(row);
       }
       if (events.length) laid.push({ id: dept.id, name: dept.name, events });
     }
@@ -154,7 +153,7 @@ export function RosterBoard() {
     for (const dept of laid) {
       for (const event of dept.events) {
         const hit = event.assignments.find((a) => a.id === selectedId);
-        if (hit) return { ...hit, event: hit.eventName, dept: dept.name };
+        if (hit) return { ...hit, event: hit.eventName, dept: hit.deptName };
       }
     }
     return null;
@@ -429,14 +428,16 @@ export function RosterBoard() {
         <div className="sheet" style={sheetStyle}>
           <div className="head">
             <div className="corner">
-              <button
-                type="button"
-                className="fold-all"
-                onClick={toggleAll}
-                disabled={!laid.length}
-              >
-                {laid.length > 0 && laid.every((dept) => closed.includes(dept.id)) ? "Expand all" : "Collapse all"}
-              </button>
+              {!rotated && (
+                <button
+                  type="button"
+                  className="fold-all"
+                  onClick={toggleAll}
+                  disabled={!laid.length}
+                >
+                  {laid.length > 0 && laid.every((dept) => closed.includes(dept.id)) ? "Expand all" : "Collapse all"}
+                </button>
+              )}
             </div>
             <div className="head-time">
               <div className="day-row">
@@ -481,9 +482,10 @@ export function RosterBoard() {
           </div>
 
           {shown.map((dept) => {
-            const open = !closed.includes(dept.id);
+            const open = rotated || !closed.includes(dept.id);
             return (
               <div key={dept.id}>
+                {!rotated && (
                 <div className="row dept-row">
                   <button
                     type="button"
@@ -498,6 +500,7 @@ export function RosterBoard() {
                   </button>
                   <Track todayLeft={todayLeft} dayPx={dayPx} zoom={zoom} nowX={nowX} />
                 </div>
+                )}
                 {open &&
                   dept.events.map((event) => (
                     <div
