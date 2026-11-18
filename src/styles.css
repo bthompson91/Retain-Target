@@ -622,6 +622,51 @@
   line-height: 1.4;
 }
 
+.detail-note {
+  margin: 0.35rem 0 0;
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.tip {
+  position: fixed;
+  z-index: 40;
+  width: min(20rem, calc(100vw - 16px));
+  max-height: 14rem;
+  overflow: auto;
+  border: 1px solid var(--color-ink);
+  background: var(--color-paper);
+  padding: 0.45rem 0.6rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  pointer-events: none;
+}
+
+.tip[data-above="true"] {
+  transform: translateY(-100%);
+}
+
+.tip p {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.tip p + p {
+  margin-top: 0.45rem;
+}
+
+.tip strong {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .swatch {
   width: 0.7rem;
   height: 2.3rem;

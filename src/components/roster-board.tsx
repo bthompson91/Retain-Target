@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { parseRosterCsv, type ParsedRoster } from "@/lib/csv-roster";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { parseRosterCsv, parseRosterXlsx, type ParsedRoster } from "@/lib/csv-roster";
 import {
   ZOOM,
   eachDay,
@@ -55,6 +55,14 @@ export function RosterBoard() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
+  const [tip, setTip] = useState<{
+    left: number;
+    top: number;
+    above: boolean;
+    comment: string;
+    fnComment: string;
+  } | null>(null);
+  const [viewPx, setViewPx] = useState({ start: 0, end: Number.POSITIVE_INFINITY });
 
   const fullOrigin = useMemo(() => parsed?.origin ?? startOfMelWeek(now), [parsed, now]);
   const fullDays = parsed?.dayCount ?? 7;
@@ -128,6 +136,37 @@ export function RosterBoard() {
     "--timeline": `${timelinePx}px`,
   } as CSSProperties;
 
+  const shown = useMemo(() => {
+    if (!(viewPx.end > viewPx.start) || !Number.isFinite(viewPx.end)) return laid;
+    return laid
+      .map((dept) => ({
+        ...dept,
+        events: dept.events.filter((event) =>
+          event.assignments.some((assignment) => {
+            const left = Math.max(0, xFor(assignment.start, weekStart, zoom));
+            const right = Math.min(timelinePx, xFor(assignment.end, weekStart, zoom));
+            return right - left >= 1 && left < viewPx.end && right > viewPx.start;
+          }),
+        ),
+      }))
+      .filter((dept) => dept.events.length > 0);
+  }, [laid, viewPx, weekStart, zoom, timelinePx]);
+
+  function measureView() {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const label = el.querySelector<HTMLElement>(".corner")?.offsetWidth ?? 0;
+    const start = el.scrollLeft;
+    const width = el.clientWidth - label;
+    if (width < 40) return;
+    const end = start + width;
+    setViewPx((prev) => (Math.abs(prev.start - start) < 1 && Math.abs(prev.end - end) < 1 ? prev : { start, end }));
+  }
+
+  useLayoutEffect(() => {
+    measureView();
+  }, [parsed, zoom, weekStart, dayCount, timelinePx]);
+
   useEffect(() => {
     const x = xFor(new Date(), weekStart, zoom);
     setNowX(x >= 0 && x <= timelinePx ? x : null);
@@ -168,20 +207,35 @@ export function RosterBoard() {
   }, [todayIndex, todayInRange, zoom, parsed, weekStart, dayCount]);
 
   function loadFile(file: File) {
-    file
-      .text()
-      .then((text) => {
-        setParsed(parseRosterCsv(text, file.name));
-        setLoadError(null);
-        setSelectedId(null);
-        setClosed([]);
-        setRangeFrom("");
-        setRangeTo("");
-        booted.current = false;
-      })
-      .catch((error: unknown) => {
-        setLoadError(error instanceof Error ? error.message : "Couldn't read that CSV.");
-      });
+    const apply = (next: ParsedRoster) => {
+      setParsed(next);
+      setLoadError(null);
+      setSelectedId(null);
+      setTip(null);
+      setClosed([]);
+      setRangeFrom("");
+      setRangeTo("");
+      booted.current = false;
+    };
+    const fail = (error: unknown) => {
+      setLoadError(error instanceof Error ? error.message : "Couldn't read that file.");
+    };
+    const excel = /\.xlsx$/i.test(file.name) || file.type.includes("spreadsheet");
+    if (excel) file.arrayBuffer().then((buffer) => apply(parseRosterXlsx(buffer, file.name))).catch(fail);
+    else file.text().then((text) => apply(parseRosterCsv(text, file.name))).catch(fail);
+  }
+
+  function showTip(target: HTMLElement, comment: string, fnComment: string) {
+    if (!comment && !fnComment) {
+      setTip(null);
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    const width = 320;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    const below = rect.bottom + 8;
+    const above = below + 180 > window.innerHeight && rect.top > 180;
+    setTip({ left, top: above ? rect.top - 8 : below, above, comment, fnComment });
   }
 
   function changeZoom(next: Zoom) {
@@ -287,11 +341,11 @@ export function RosterBoard() {
               </button>
             ))}
           </div>
-          <label className="file-btn" title={parsed?.fileName ?? "Upload a TimeTarget CSV"}>
-            CSV
+          <label className="file-btn" title={parsed?.fileName ?? "Upload a TimeTarget Excel or CSV"}>
+            Upload
             <input
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0];
                 if (file) loadFile(file);
@@ -305,7 +359,14 @@ export function RosterBoard() {
         </div>
       </header>
 
-      <div className="scroller" ref={scrollerRef}>
+      <div
+        className="scroller"
+        ref={scrollerRef}
+        onScroll={() => {
+          if (tip) setTip(null);
+          measureView();
+        }}
+      >
         <div className="sheet" style={sheetStyle}>
           <div className="head">
             <div className="corner">Events</div>
@@ -351,7 +412,7 @@ export function RosterBoard() {
             </div>
           </div>
 
-          {laid.map((dept) => {
+          {shown.map((dept) => {
             const open = !closed.includes(dept.id);
             return (
               <div key={dept.id}>
@@ -401,7 +462,10 @@ export function RosterBoard() {
                               }
                               aria-pressed={on ? true : undefined}
                               aria-label={`${a.employee}, ${a.fn}, ${a.role}`}
-                              title={a.employee}
+                              onMouseEnter={(event) => showTip(event.currentTarget, a.comment, a.fnComment)}
+                              onFocus={(event) => showTip(event.currentTarget, a.comment, a.fnComment)}
+                              onMouseLeave={() => setTip(null)}
+                              onBlur={() => setTip(null)}
                               onClick={() => setSelectedId(on ? null : a.id)}
                             >
                               <span className="bar-name">{a.employee}</span>
@@ -439,6 +503,8 @@ export function RosterBoard() {
                     ? "Confirmed"
                     : "Unconfirmed"}
               </p>
+              {selected.comment ? <p className="detail-note">{selected.comment}</p> : null}
+              {selected.fnComment ? <p className="detail-note">Function: {selected.fnComment}</p> : null}
             </div>
           </>
         ) : (
@@ -450,10 +516,26 @@ export function RosterBoard() {
                   ? visibleCount === 0 && view.filtered
                     ? "No shifts in this date range."
                     : "Departments fold with +. Zoom goes down to the hour. Today is blue. Tap a shift for the times."
-                  : "The board is empty. Load a TimeTarget CSV.")}
+                  : "The board is empty. Load a TimeTarget Excel or CSV.")}
           </p>
         )}
       </footer>
+      {tip ? (
+        <div className="tip" style={{ left: tip.left, top: tip.top }} data-above={tip.above ? "true" : undefined}>
+          {tip.comment ? (
+            <p>
+              <strong>Comments</strong>
+              {tip.comment}
+            </p>
+          ) : null}
+          {tip.fnComment ? (
+            <p>
+              <strong>Function comments</strong>
+              {tip.fnComment}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

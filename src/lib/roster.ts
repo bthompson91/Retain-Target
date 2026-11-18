@@ -22,6 +22,8 @@ export type Assignment = {
   status: ShiftStatus;
   start: Date;
   end: Date;
+  comment: string;
+  fnComment: string;
 };
 
 export type RosterEvent = {

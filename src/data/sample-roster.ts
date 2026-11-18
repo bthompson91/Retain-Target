@@ -27,6 +27,8 @@ export function buildRoster(weekStart: Date, todayIndex: number): Department[] {
     status,
     start: at(day, sh, sm),
     end: at(endDay, eh, em),
+    comment: "",
+    fnComment: "",
   });
 
   const ball = todayIndex;

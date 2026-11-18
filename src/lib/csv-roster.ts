@@ -1,3 +1,4 @@
+import * as XLSX from "xlsx";
 import {
   melbourne,
   startOfMelDay,
@@ -61,15 +62,28 @@ function parseCsv(text: string, delimiter = ","): string[][] {
 }
 
 function clock(value: string): { hour: number; minute: number } | null {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?(?:\s*([ap])\.?m\.?)?$/i.exec(value.trim());
   if (!match) return null;
-  const hour = Number(match[1]);
+  let hour = Number(match[1]);
   const minute = Number(match[2]);
+  const suffix = match[3]?.toLowerCase();
+  if (suffix === "p" && hour < 12) hour += 12;
+  if (suffix === "a" && hour === 12) hour = 0;
   if (hour > 23 || minute > 59) return null;
   return { hour, minute };
 }
 
-function statusFor(role: string): ShiftStatus {
+function parseDay(value: string): { year: number; month: number; day: number } | null {
+  const trimmed = value.trim();
+  const dmy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(trimmed);
+  if (dmy) return { day: Number(dmy[1]), month: Number(dmy[2]) - 1, year: Number(dmy[3]) };
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+  if (iso) return { year: Number(iso[1]), month: Number(iso[2]) - 1, day: Number(iso[3]) };
+  return null;
+}
+
+function statusFor(role: string, explicit = ""): ShiftStatus {
+  if (explicit.trim()) return /^confirmed$/i.test(explicit.trim()) ? "confirmed" : "unconfirmed";
   return /cancel/i.test(role) ? "unconfirmed" : "confirmed";
 }
 
@@ -107,21 +121,30 @@ export function parseRosterCsv(text: string, fileName = "roster.csv"): ParsedRos
   ) {
     table = parseCsv(text, ";");
   }
+  return parseRosterTable(table, fileName);
+}
+
+function parseRosterTable(table: string[][], fileName: string): ParsedRoster {
   const header = table[0].map((value) => value.trim().toLowerCase());
   const at = (name: string) => header.indexOf(name);
   const col = {
     date: at("date"),
     start: at("start time"),
     end: at("end time"),
-    employee: at("employee roster name"),
+    employee: at("employee"),
+    roster: at("employee roster name"),
     department: at("department"),
     event: at("event"),
     fn: at("function"),
     role: at("role"),
+    status: at("status"),
+    comment: at("comments"),
+    fnComment: at("function comments"),
   };
-  if (Object.values(col).some((index) => index < 0)) {
+  const required = [col.date, col.start, col.end, col.department, col.event, col.fn, col.role];
+  if (required.some((index) => index < 0) || (col.employee < 0 && col.roster < 0)) {
     throw new Error(
-      "CSV needs Date, Start Time, End Time, Employee Roster Name, Department, Event, Function and Role.",
+      "Needs Date, Start Time, End Time, Employee Roster Name or Employee, Department, Event, Function and Role.",
     );
   }
 
@@ -136,19 +159,19 @@ export function parseRosterCsv(text: string, fileName = "roster.csv"): ParsedRos
 
   table.slice(1).forEach((row, index) => {
     const line = index + 2;
-    if (row.length !== header.length) {
-      warn(`Row ${line} has ${row.length} columns, header has ${header.length}.`);
+    const width = header.length;
+    const cells = row.length < width ? row.concat(Array(width - row.length).fill("")) : row;
+    if (cells.length > width) {
+      warn(`Row ${line} has ${cells.length} columns, header has ${width}.`);
     }
-    const date = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(cell(row, col.date));
-    const startClock = clock(cell(row, col.start));
-    const endClock = clock(cell(row, col.end));
+    const date = parseDay(cell(cells, col.date));
+    const startClock = clock(cell(cells, col.start));
+    const endClock = clock(cell(cells, col.end));
     if (!date || !startClock || !endClock) {
       warn(`Row ${line} skipped: date or time is not a shift.`);
       return;
     }
-    const year = Number(date[3]);
-    const month = Number(date[2]) - 1;
-    const day = Number(date[1]);
+    const { year, month, day } = date;
     const start = melbourne(year, month, day, startClock.hour, startClock.minute);
     const startMin = startClock.hour * 60 + startClock.minute;
     const endMin = endClock.hour * 60 + endClock.minute;
@@ -162,30 +185,36 @@ export function parseRosterCsv(text: string, fileName = "roster.csv"): ParsedRos
     } else {
       end = melbourne(year, month, day, endClock.hour, endClock.minute);
     }
-    const rawEmployee = cell(row, col.employee);
-    const rawDept = cell(row, col.department);
+    const rosterName = col.roster >= 0 ? cell(cells, col.roster) : "";
+    const fullName = col.employee >= 0 ? cell(cells, col.employee) : "";
+    const usable = (value: string) => (value && !isPlaceholderName(value) ? value : "");
+    const rawEmployee = usable(rosterName) || usable(fullName);
+    if ((rosterName && !usable(rosterName)) || (fullName && !usable(fullName) && !rawEmployee)) {
+      const bad = !usable(rosterName) ? rosterName : fullName;
+      if (bad) warn(`Row ${line}: ignored employee "${bad}".`);
+    }
+    const rawDept = cell(cells, col.department);
     let employee = rawEmployee || "Unassigned";
     let dept = rawDept || "No department";
-    if (rawEmployee && isPlaceholderName(rawEmployee)) {
-      warn(`Row ${line}: ignored employee "${rawEmployee}".`);
-      employee = "Unassigned";
-    }
     if (rawDept && isPlaceholderDepartment(rawDept)) {
       warn(`Row ${line}: ignored department "${rawDept}".`);
       dept = "No department";
     }
-    const role = cell(row, col.role) || "—";
+    const role = cell(cells, col.role) || "—";
+    const explicitStatus = col.status >= 0 ? cell(cells, col.status) : "";
     drafts.push({
       id: `s${drafts.length}`,
       employee,
-      fn: cell(row, col.fn),
+      fn: cell(cells, col.fn),
       role,
       tone: toneForRole(role),
-      status: statusFor(role),
+      status: statusFor(role, explicitStatus),
       start,
       end,
       dept,
-      event: cell(row, col.event) || "No event",
+      event: cell(cells, col.event) || "No event",
+      comment: col.comment >= 0 ? cell(cells, col.comment) : "",
+      fnComment: col.fnComment >= 0 ? cell(cells, col.fnComment) : "",
     });
   });
 
@@ -236,4 +265,23 @@ export function parseRosterCsv(text: string, fileName = "roster.csv"): ParsedRos
     }));
 
   return { departments, origin, dayCount, shiftCount: drafts.length, fileName, warnings };
+}
+
+export function parseRosterXlsx(data: ArrayBuffer, fileName = "roster.xlsx"): ParsedRoster {
+  const book = XLSX.read(data, { type: "array" });
+  const sheetName = book.SheetNames[0];
+  if (!sheetName) throw new Error("That workbook has no sheets.");
+  const rows = XLSX.utils.sheet_to_json<Array<string | number | boolean | null>>(book.Sheets[sheetName], {
+    header: 1,
+    raw: false,
+    defval: "",
+    blankrows: false,
+  });
+  const table = rows
+    .filter((row) => Array.isArray(row))
+    .map((row) =>
+      row.map((value) => (value == null || value === false ? "" : String(value).replace(/\r\n/g, "\n").trim())),
+    );
+  if (!table.length) throw new Error("That workbook is empty.");
+  return parseRosterTable(table, fileName);
 }
