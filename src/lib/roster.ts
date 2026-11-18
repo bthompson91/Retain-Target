@@ -209,8 +209,23 @@ export function packLanes(spans: { start: number; end: number }[]): number[] {
   const order = spans
     .map((span, index) => ({ ...span, index }))
     .sort((a, b) => a.start - b.start || a.end - b.end);
+  return assignLanes(order);
+}
+
+/** Top lane is the first roster name. A later name only shares that lane when the times do not overlap. */
+export function packLanesByName(spans: { employee: string; start: number; end: number }[]): number[] {
+  const order = spans
+    .map((span, index) => ({ ...span, index }))
+    .sort(
+      (a, b) =>
+        a.employee.localeCompare(b.employee, undefined, { sensitivity: "base" }) || a.start - b.start || a.end - b.end,
+    );
+  return assignLanes(order);
+}
+
+function assignLanes(order: { index: number; start: number; end: number }[]): number[] {
   const laneEnds: number[] = [];
-  const laneOf = new Array<number>(spans.length).fill(0);
+  const laneOf = new Array<number>(order.length).fill(0);
   for (const span of order) {
     let lane = laneEnds.findIndex((end) => end <= span.start);
     if (lane === -1) {

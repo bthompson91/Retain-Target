@@ -14,6 +14,7 @@ import {
   isoMelDay,
   melParts,
   packLanes,
+  packLanesByName,
   slotOnDay,
   startOfMelDay,
   startOfMelWeek,
@@ -103,10 +104,15 @@ export function RosterBoard() {
       name: string,
       dept: string,
       assignments: Array<Assignment & { eventName: string; deptName: string }>,
+      byName = false,
     ): LaidEvent | null => {
       if (!assignments.length) return null;
       visibleCount += assignments.length;
-      const lanes = packLanes(assignments.map((a) => ({ start: a.start.getTime(), end: a.end.getTime() })));
+      const lanes = byName
+        ? packLanesByName(
+            assignments.map((a) => ({ employee: a.employee, start: a.start.getTime(), end: a.end.getTime() })),
+          )
+        : packLanes(assignments.map((a) => ({ start: a.start.getTime(), end: a.end.getTime() })));
       const laneCount = lanes.length ? Math.max(...lanes) + 1 : 1;
       return {
         id,
@@ -135,7 +141,12 @@ export function RosterBoard() {
         }
       }
       const events: LaidEvent[] = [];
-      for (const name of [...byPerson.keys()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))) {
+      for (const name of [...byPerson.keys()].sort((a, b) => {
+        const openA = !a.trim() || /^unassigned$/i.test(a.trim()) || /^\d/.test(a.trim());
+        const openB = !b.trim() || /^unassigned$/i.test(b.trim()) || /^\d/.test(b.trim());
+        if (openA !== openB) return openA ? -1 : 1;
+        return a.localeCompare(b, undefined, { sensitivity: "base" });
+      })) {
         const row = pack(name, name, name, byPerson.get(name) ?? []);
         const contact = mobiles.get(name) || phones.get(name) || "";
         events.push(
@@ -161,7 +172,7 @@ export function RosterBoard() {
         const assignments = event.assignments
           .filter((a) => a.end.getTime() > startMs && a.start.getTime() < endMs)
           .map((a) => ({ ...a, eventName: event.name, deptName: dept.name }));
-        const row = pack(event.id, event.name, dept.name, assignments);
+        const row = pack(event.id, event.name, dept.name, assignments, true);
         if (row) events.push(row);
       }
       if (events.length) laid.push({ id: dept.id, name: dept.name, events });
