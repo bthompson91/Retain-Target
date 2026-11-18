@@ -58,6 +58,7 @@ export function RosterBoard() {
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
   const [rotated, setRotated] = useState(false);
+  const [deptFilter, setDeptFilter] = useState("");
   const [tip, setTip] = useState<{
     left: number;
     top: number;
@@ -120,6 +121,7 @@ export function RosterBoard() {
       const mobiles = new Map<string, string>();
       const phones = new Map<string, string>();
       for (const dept of roster) {
+        if (deptFilter && dept.name !== deptFilter) continue;
         for (const event of dept.events) {
           for (const assignment of event.assignments) {
             const list = byPerson.get(assignment.employee) ?? [];
@@ -164,7 +166,7 @@ export function RosterBoard() {
       if (events.length) laid.push({ id: dept.id, name: dept.name, events });
     }
     return { laid, visibleCount };
-  }, [roster, weekStart, dayCount, rotated]);
+  }, [roster, weekStart, dayCount, rotated, deptFilter]);
 
   const selected = useMemo(() => {
     if (!selectedId) return null;
@@ -434,6 +436,19 @@ export function RosterBoard() {
           >
             Rotate
           </button>
+          {rotated && (
+            <label className="dept-filter">
+              Department
+              <select value={deptFilter} onChange={(event) => setDeptFilter(event.target.value)}>
+                <option value="">All</option>
+                {roster.map((dept) => (
+                  <option key={dept.id} value={dept.name}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </header>
 

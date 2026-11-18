@@ -134,13 +134,27 @@
   font-weight: 600;
 }
 
-.dates input {
+.dates input,
+.dept-filter select {
   font: inherit;
   color: var(--color-ink);
   min-height: 2.75rem;
   border: 1px solid var(--color-line);
   background: var(--color-panel);
   padding: 0 0.35rem;
+}
+
+.dept-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.dept-filter select {
+  max-width: 16rem;
 }
 
 .zoom {
