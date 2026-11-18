@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseRosterCsv } from "./csv-roster.ts";
+import { parseRosterCsv, parseRosterXlsx } from "./csv-roster.ts";
 import { colorForRole } from "./role-colors.ts";
 import { edgeFor, formatClock, isoMelDay, melParts, toneForRole, windowForRange } from "./roster.ts";
+import * as XLSX from "xlsx";
 
 const csv = `Date,Start Time,End Time,Employee Roster Name,Department,Event,Function,Role
 16/11/2026,14:00,18:00,Alex Example,VIC-Example,1001 - Sample Event,Set Up,Audio L2
@@ -105,3 +106,56 @@ not-a-date,14:00,18:00,Alex Example,VIC-Example,1001 - Sample,Set Up,Audio L2
     assert.ok(roster.warnings.some((note) => note.includes("skipped")));
   });
 });
+
+describe("parseRosterXlsx", () => {
+  it("reads roster names, status, comments and function comments from the wide export", () => {
+    const sheet = XLSX.utils.aoa_to_sheet([
+      [
+        "Employee",
+        "Employee Roster Name",
+        "Date",
+        "Start Time",
+        "End Time",
+        "Status",
+        "Department",
+        "Role",
+        "Event",
+        "Function",
+        "Comments",
+        "Function Comments",
+        "Published",
+        "GuidKey",
+      ],
+      [
+        "Christopher Ruffles",
+        "Chris Ruffles",
+        new Date(Date.UTC(2026, 10, 16)),
+        "08:30:00",
+        "12:00:00",
+        "Unconfirmed",
+        "VIC-CENTREPIECE",
+        "Audio L2",
+        "0995665 - GH2&3 | We Are Carlisle",
+        "Operate",
+        "Bring the spare laptop",
+        "Salesperson : Courtney Beggs",
+        "False",
+        "{7CFAE39E-E5ED-4F5D-B490-5260AFF82D4B}",
+      ],
+    ]);
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Roster");
+    const bytes = XLSX.write(book, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    const roster = parseRosterXlsx(bytes, "export.xlsx");
+    const shift = roster.departments[0]?.events[0]?.assignments[0];
+    assert.ok(shift);
+    assert.equal(shift.employee, "Chris Ruffles");
+    assert.equal(shift.status, "unconfirmed");
+    assert.equal(shift.comment, "Bring the spare laptop");
+    assert.equal(shift.fnComment, "Salesperson : Courtney Beggs");
+    assert.equal(shift.role, "Audio L2");
+    assert.equal(melParts(shift.start).day, 16);
+    assert.equal(roster.departments[0].name, "VIC-CENTREPIECE");
+  });
+});
+

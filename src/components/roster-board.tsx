@@ -226,10 +226,6 @@ export function RosterBoard() {
   }
 
   function showTip(target: HTMLElement, comment: string, fnComment: string) {
-    if (!comment && !fnComment) {
-      setTip(null);
-      return;
-    }
     const rect = target.getBoundingClientRect();
     const width = 320;
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
@@ -509,8 +505,12 @@ export function RosterBoard() {
                     ? "Confirmed"
                     : "Unconfirmed"}
               </p>
-              {selected.comment ? <p className="detail-note">{selected.comment}</p> : null}
-              {selected.fnComment ? <p className="detail-note">Function: {selected.fnComment}</p> : null}
+              <p className="detail-note">
+                <strong>Comments</strong> {selected.comment || "None"}
+              </p>
+              <p className="detail-note">
+                <strong>Function comments</strong> {selected.fnComment || "None"}
+              </p>
             </div>
           </>
         ) : (
@@ -528,18 +528,14 @@ export function RosterBoard() {
       </footer>
       {tip ? (
         <div className="tip" style={{ left: tip.left, top: tip.top }} data-above={tip.above ? "true" : undefined}>
-          {tip.comment ? (
-            <p>
-              <strong>Comments</strong>
-              {tip.comment}
-            </p>
-          ) : null}
-          {tip.fnComment ? (
-            <p>
-              <strong>Function comments</strong>
-              {tip.fnComment}
-            </p>
-          ) : null}
+          <p>
+            <strong>Comments</strong>
+            {tip.comment || "None"}
+          </p>
+          <p>
+            <strong>Function comments</strong>
+            {tip.fnComment || "None"}
+          </p>
         </div>
       ) : null}
     </div>

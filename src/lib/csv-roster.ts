@@ -75,10 +75,18 @@ function clock(value: string): { hour: number; minute: number } | null {
 
 function parseDay(value: string): { year: number; month: number; day: number } | null {
   const trimmed = value.trim();
-  const dmy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(trimmed);
-  if (dmy) return { day: Number(dmy[1]), month: Number(dmy[2]) - 1, year: Number(dmy[3]) };
   const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
   if (iso) return { year: Number(iso[1]), month: Number(iso[2]) - 1, day: Number(iso[3]) };
+  const dmy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed);
+  if (dmy) return { day: Number(dmy[1]), month: Number(dmy[2]) - 1, year: Number(dmy[3]) };
+  const short = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/.exec(trimmed);
+  if (short) {
+    const first = Number(short[1]);
+    const second = Number(short[2]);
+    const year = 2000 + Number(short[3]);
+    if (first > 12) return { day: first, month: second - 1, year };
+    return { day: second, month: first - 1, year };
+  }
   return null;
 }
 
@@ -268,20 +276,37 @@ function parseRosterTable(table: string[][], fileName: string): ParsedRoster {
 }
 
 export function parseRosterXlsx(data: ArrayBuffer, fileName = "roster.xlsx"): ParsedRoster {
-  const book = XLSX.read(data, { type: "array" });
+  const book = XLSX.read(data, { type: "array", cellDates: true });
   const sheetName = book.SheetNames[0];
   if (!sheetName) throw new Error("That workbook has no sheets.");
-  const rows = XLSX.utils.sheet_to_json<Array<string | number | boolean | null>>(book.Sheets[sheetName], {
+  const rows = XLSX.utils.sheet_to_json<Array<unknown>>(book.Sheets[sheetName], {
     header: 1,
-    raw: false,
+    raw: true,
     defval: "",
     blankrows: false,
   });
-  const table = rows
-    .filter((row) => Array.isArray(row))
-    .map((row) =>
-      row.map((value) => (value == null || value === false ? "" : String(value).replace(/\r\n/g, "\n").trim())),
-    );
+  const table = rows.filter((row) => Array.isArray(row)).map((row) => row.map(excelCell));
   if (!table.length) throw new Error("That workbook is empty.");
   return parseRosterTable(table, fileName);
+}
+
+function excelCell(value: unknown): string {
+  if (value == null || value === false) return "";
+  if (value instanceof Date) {
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(value.getUTCDate()).padStart(2, "0");
+    if (year < 1905) {
+      return `${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`;
+    }
+    return `${year}-${month}-${day}`;
+  }
+  if (typeof value === "number" && value > 20000 && value < 80000) {
+    const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86_400_000);
+    const year = utc.getUTCFullYear();
+    const month = String(utc.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(utc.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  return String(value).replace(/\r\n/g, "\n").trim();
 }
