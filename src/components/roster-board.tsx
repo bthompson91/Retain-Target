@@ -593,7 +593,9 @@ export function RosterBoard() {
                           if (!box) return null;
                           const on = selectedId === a.id;
                           const color = colorForRole(a.role);
-                          const head = rotated ? a.eventName : a.employee;
+                          const eventTitle =
+                            a.eventName && a.eventName !== "No event" ? a.eventName : a.deptName;
+                          const head = rotated ? eventTitle : a.employee;
                           const meta = a.fn ? `${a.fn} · ${a.role}` : a.role;
                           return (
                             <button
@@ -612,7 +614,7 @@ export function RosterBoard() {
                                 } as CSSProperties
                               }
                               aria-pressed={on ? true : undefined}
-                              aria-label={rotated ? `${a.eventName}, ${meta}` : `${a.employee}, ${meta}`}
+                              aria-label={rotated ? `${eventTitle}, ${meta}` : `${a.employee}, ${meta}`}
                               onMouseEnter={(event) => showTip(event.currentTarget, a)}
                               onFocus={(event) => showTip(event.currentTarget, a)}
                               onMouseLeave={() => setTip(null)}
