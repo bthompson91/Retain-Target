@@ -8,6 +8,7 @@ import {
   edgeFor,
   formatDayLabel,
   formatHourLabel,
+  formatClock,
   formatSpan,
   formatWeek,
   isoMelDay,
@@ -60,6 +61,9 @@ export function RosterBoard() {
     left: number;
     top: number;
     above: boolean;
+    date: string;
+    start: string;
+    end: string;
     comment: string;
     fnComment: string;
   } | null>(null);
@@ -257,13 +261,26 @@ export function RosterBoard() {
     else file.text().then((text) => apply(parseRosterCsv(text, file.name))).catch(fail);
   }
 
-  function showTip(target: HTMLElement, comment: string, fnComment: string) {
+  function showTip(target: HTMLElement, shift: LaidAssignment) {
     const rect = target.getBoundingClientRect();
     const width = 320;
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
     const below = rect.bottom + 8;
-    const above = below + 180 > window.innerHeight && rect.top > 180;
-    setTip({ left, top: above ? rect.top - 8 : below, above, comment, fnComment });
+    const above = below + 240 > window.innerHeight && rect.top > 220;
+    const startParts = melParts(shift.start);
+    const endParts = melParts(shift.end);
+    const sameDay =
+      startParts.year === endParts.year && startParts.month === endParts.month && startParts.day === endParts.day;
+    setTip({
+      left,
+      top: above ? rect.top - 8 : below,
+      above,
+      date: sameDay ? formatDayLabel(shift.start) : `${formatDayLabel(shift.start)} – ${formatDayLabel(shift.end)}`,
+      start: formatClock(shift.start),
+      end: formatClock(shift.end),
+      comment: shift.comment,
+      fnComment: shift.fnComment,
+    });
   }
 
   function changeZoom(next: Zoom) {
@@ -517,8 +534,8 @@ export function RosterBoard() {
                               }
                               aria-pressed={on ? true : undefined}
                               aria-label={rotated ? `${a.eventName}, ${meta}` : `${a.employee}, ${meta}`}
-                              onMouseEnter={(event) => showTip(event.currentTarget, a.comment, a.fnComment)}
-                              onFocus={(event) => showTip(event.currentTarget, a.comment, a.fnComment)}
+                              onMouseEnter={(event) => showTip(event.currentTarget, a)}
+                              onFocus={(event) => showTip(event.currentTarget, a)}
                               onMouseLeave={() => setTip(null)}
                               onBlur={() => setTip(null)}
                               onClick={() => setSelectedId(on ? null : a.id)}
@@ -585,6 +602,18 @@ export function RosterBoard() {
       </footer>
       {tip ? (
         <div className="tip" style={{ left: tip.left, top: tip.top }} data-above={tip.above ? "true" : undefined}>
+          <p>
+            <strong>Date</strong>
+            {tip.date}
+          </p>
+          <p>
+            <strong>Start</strong>
+            {tip.start}
+          </p>
+          <p>
+            <strong>End</strong>
+            {tip.end}
+          </p>
           <p>
             <strong>Comments</strong>
             {tip.comment || "None"}
