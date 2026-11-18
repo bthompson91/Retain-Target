@@ -244,7 +244,6 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  border-bottom: 2px solid #000;
   background: var(--color-header);
 }
 
@@ -345,7 +344,7 @@
   height: 1.75rem;
   padding: 0 0.5rem 0.2rem;
   border-left: 0;
-  box-shadow: inset -2px 0 0 #000, inset 0 2px 0 #000, inset 0 -2px 0 #000;
+  box-shadow: inset -1px 0 0 #000, inset 0 1px 0 #000, inset 0 -1px 0 #000;
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -365,7 +364,7 @@
   width: var(--slot);
   height: 1.25rem;
   border-left: 0;
-  box-shadow: inset -1px 0 0 #000, inset 0 -2px 0 #000;
+  box-shadow: inset -1px 0 0 #000, inset 0 -1px 0 #000;
   color: var(--color-muted);
   font-family: var(--font-mono);
   font-size: 0.6875rem;
@@ -374,7 +373,7 @@
 }
 
 .slot-cell[data-day="true"] {
-  box-shadow: inset 2px 0 0 #000, inset -1px 0 0 #000, inset 0 -2px 0 #000;
+  box-shadow: inset -1px 0 0 #000, inset 0 -1px 0 #000;
 }
 
 .slot-cell[data-shade="a"],
@@ -525,8 +524,8 @@
   background-image: repeating-linear-gradient(
     to right,
     transparent 0,
-    transparent calc(var(--day) - 2px),
-    #000 calc(var(--day) - 2px),
+    transparent calc(var(--day) - 1px),
+    #000 calc(var(--day) - 1px),
     #000 var(--day)
   );
 }
