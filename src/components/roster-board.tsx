@@ -58,7 +58,8 @@ export function RosterBoard() {
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
   const [rotated, setRotated] = useState(false);
-  const [deptFilter, setDeptFilter] = useState("");
+  const [deptFilter, setDeptFilter] = useState<string[] | null>(null);
+  const [deptOpen, setDeptOpen] = useState(false);
   const [tip, setTip] = useState<{
     left: number;
     top: number;
@@ -121,7 +122,7 @@ export function RosterBoard() {
       const mobiles = new Map<string, string>();
       const phones = new Map<string, string>();
       for (const dept of roster) {
-        if (deptFilter && dept.name !== deptFilter) continue;
+        if (deptFilter && !deptFilter.includes(dept.name)) continue;
         for (const event of dept.events) {
           for (const assignment of event.assignments) {
             const list = byPerson.get(assignment.employee) ?? [];
@@ -272,6 +273,8 @@ export function RosterBoard() {
       setClosed([]);
       setRangeFrom("");
       setRangeTo("");
+      setDeptFilter(null);
+      setDeptOpen(false);
       booted.current = false;
     };
     const fail = (error: unknown) => {
@@ -329,6 +332,16 @@ export function RosterBoard() {
     const ids = laid.map((dept) => dept.id);
     const allClosed = ids.length > 0 && ids.every((id) => closed.includes(id));
     setClosed(allClosed ? [] : ids);
+  }
+
+  function toggleDeptFilter(name: string) {
+    const names = roster.map((dept) => dept.name);
+    setDeptFilter((current) => {
+      const selected = current ?? names;
+      const next = selected.includes(name) ? selected.filter((item) => item !== name) : [...selected, name];
+      if (next.length === names.length) return null;
+      return next;
+    });
   }
 
   function barBox(start: Date, end: Date) {
@@ -436,19 +449,6 @@ export function RosterBoard() {
           >
             Rotate
           </button>
-          {rotated && (
-            <label className="dept-filter">
-              Department
-              <select value={deptFilter} onChange={(event) => setDeptFilter(event.target.value)}>
-                <option value="">All</option>
-                {roster.map((dept) => (
-                  <option key={dept.id} value={dept.name}>
-                    {dept.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
         </div>
       </header>
 
@@ -463,7 +463,47 @@ export function RosterBoard() {
         <div className="sheet" style={sheetStyle}>
           <div className="head">
             <div className="corner">
-              {!rotated && (
+              {rotated ? (
+                <div className="dept-filter">
+                  <button
+                    type="button"
+                    className="fold-all"
+                    aria-expanded={deptOpen}
+                    aria-haspopup="true"
+                    onClick={() => setDeptOpen((open) => !open)}
+                  >
+                    {deptFilter == null
+                      ? "All departments"
+                      : deptFilter.length === 0
+                        ? "No departments"
+                        : deptFilter.length === 1
+                          ? deptFilter[0]
+                          : `${deptFilter.length} departments`}
+                  </button>
+                  {deptOpen && (
+                    <div className="dept-menu" role="group" aria-label="Departments">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={deptFilter == null}
+                          onChange={() => setDeptFilter(deptFilter == null ? [] : null)}
+                        />
+                        All
+                      </label>
+                      {roster.map((dept) => (
+                        <label key={dept.id}>
+                          <input
+                            type="checkbox"
+                            checked={deptFilter == null || deptFilter.includes(dept.name)}
+                            onChange={() => toggleDeptFilter(dept.name)}
+                          />
+                          {dept.name}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <button
                   type="button"
                   className="fold-all"
