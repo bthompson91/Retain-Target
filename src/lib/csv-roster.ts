@@ -148,6 +148,8 @@ function parseRosterTable(table: string[][], fileName: string): ParsedRoster {
     status: at("status"),
     comment: at("comments"),
     fnComment: at("function comments"),
+    mobile: at("mobile"),
+    phone: at("phone"),
   };
   const required = [col.date, col.start, col.end, col.department, col.event, col.fn, col.role];
   if (required.some((index) => index < 0) || (col.employee < 0 && col.roster < 0)) {
@@ -223,6 +225,8 @@ function parseRosterTable(table: string[][], fileName: string): ParsedRoster {
       event: cell(cells, col.event) || "No event",
       comment: col.comment >= 0 ? cell(cells, col.comment) : "",
       fnComment: col.fnComment >= 0 ? cell(cells, col.fnComment) : "",
+      mobile: col.mobile >= 0 ? cell(cells, col.mobile) : "",
+      phone: col.phone >= 0 ? cell(cells, col.phone) : "",
     });
   });
 

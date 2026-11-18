@@ -24,6 +24,8 @@ export type Assignment = {
   end: Date;
   comment: string;
   fnComment: string;
+  mobile: string;
+  phone: string;
 };
 
 export type RosterEvent = {

@@ -29,6 +29,7 @@ type LaidEvent = {
   id: string;
   name: string;
   dept: string;
+  contact: string;
   laneCount: number;
   assignments: LaidAssignment[];
 };
@@ -111,15 +112,20 @@ export function RosterBoard() {
         dept,
         laneCount,
         assignments: assignments.map((a, i) => ({ ...a, lane: lanes[i] ?? 0 })),
+        contact: "",
       };
     };
     if (rotated) {
       const byPerson = new Map<string, Array<Assignment & { eventName: string; deptName: string }>>();
+      const mobiles = new Map<string, string>();
+      const phones = new Map<string, string>();
       for (const dept of roster) {
         for (const event of dept.events) {
           for (const assignment of event.assignments) {
             const list = byPerson.get(assignment.employee) ?? [];
             if (!byPerson.has(assignment.employee)) byPerson.set(assignment.employee, list);
+            if (assignment.mobile && !mobiles.has(assignment.employee)) mobiles.set(assignment.employee, assignment.mobile);
+            if (assignment.phone && !phones.has(assignment.employee)) phones.set(assignment.employee, assignment.phone);
             if (assignment.end.getTime() <= startMs || assignment.start.getTime() >= endMs) continue;
             list.push({ ...assignment, eventName: event.name, deptName: dept.name });
           }
@@ -128,14 +134,18 @@ export function RosterBoard() {
       const events: LaidEvent[] = [];
       for (const name of [...byPerson.keys()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))) {
         const row = pack(name, name, name, byPerson.get(name) ?? []);
+        const contact = mobiles.get(name) || phones.get(name) || "";
         events.push(
-          row ?? {
-            id: name,
-            name,
-            dept: name,
-            laneCount: 1,
-            assignments: [],
-          },
+          row
+            ? { ...row, contact }
+            : {
+                id: name,
+                name,
+                dept: name,
+                contact,
+                laneCount: 1,
+                assignments: [],
+              },
         );
       }
       if (events.length) laid.push({ id: "people", name: "", events });
@@ -518,8 +528,9 @@ export function RosterBoard() {
                       className="row event-row"
                       style={{ "--lanes": event.laneCount } as CSSProperties}
                     >
-                      <div className="event-label" title={event.name}>
+                      <div className="event-label" title={event.contact ? `${event.name}, ${event.contact}` : event.name}>
                         <span className="event-name">{event.name}</span>
+                        {rotated && event.contact ? <span className="event-contact">{event.contact}</span> : null}
                       </div>
                       <Track todayLeft={todayLeft} dayPx={dayPx} zoom={zoom} nowX={nowX}>
                         {event.assignments.map((a) => {
