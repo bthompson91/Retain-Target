@@ -118,17 +118,25 @@ export function RosterBoard() {
       for (const dept of roster) {
         for (const event of dept.events) {
           for (const assignment of event.assignments) {
-            if (assignment.end.getTime() <= startMs || assignment.start.getTime() >= endMs) continue;
             const list = byPerson.get(assignment.employee) ?? [];
+            if (!byPerson.has(assignment.employee)) byPerson.set(assignment.employee, list);
+            if (assignment.end.getTime() <= startMs || assignment.start.getTime() >= endMs) continue;
             list.push({ ...assignment, eventName: event.name, deptName: dept.name });
-            byPerson.set(assignment.employee, list);
           }
         }
       }
       const events: LaidEvent[] = [];
       for (const name of [...byPerson.keys()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))) {
         const row = pack(name, name, name, byPerson.get(name) ?? []);
-        if (row) events.push(row);
+        events.push(
+          row ?? {
+            id: name,
+            name,
+            dept: name,
+            laneCount: 1,
+            assignments: [],
+          },
+        );
       }
       if (events.length) laid.push({ id: "people", name: "", events });
       return { laid, visibleCount };
@@ -172,6 +180,7 @@ export function RosterBoard() {
   } as CSSProperties;
 
   const shown = useMemo(() => {
+    if (rotated) return laid;
     if (!(viewPx.end > viewPx.start) || !Number.isFinite(viewPx.end)) return laid;
     return laid
       .map((dept) => ({
@@ -185,7 +194,7 @@ export function RosterBoard() {
         ),
       }))
       .filter((dept) => dept.events.length > 0);
-  }, [laid, viewPx, weekStart, zoom, timelinePx]);
+  }, [laid, viewPx, weekStart, zoom, timelinePx, rotated]);
 
   function measureView() {
     const el = scrollerRef.current;
