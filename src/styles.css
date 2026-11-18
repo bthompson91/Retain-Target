@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "DotGothic16", "Liberation Sans", sans-serif;
-  --font-mono: "DotGothic16", "Liberation Mono", monospace;
+  --font-sans: "Geist Pixel", "Liberation Sans", sans-serif;
+  --font-mono: "Geist Pixel", "Liberation Mono", monospace;
 
   --color-ink: #1c1916;
   --color-muted: #5e584f;
