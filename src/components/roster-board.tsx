@@ -192,20 +192,22 @@ export function RosterBoard() {
   }, [laid, selectedId]);
 
   const z = ZOOM[zoom];
-  const fitted = z.fitDays > 0;
-  const dayPx = fitted
-    ? (availPx > 40 ? availPx : z.fitDays * z.slotPx) / z.fitDays
+  const fits = z.fitDays > 0;
+  const showTimes = z.slotHours < 24;
+  const dayPx = fits
+    ? (availPx > 40 ? availPx : z.fitDays * (24 / z.slotHours) * z.slotPx) / z.fitDays
     : (24 / z.slotHours) * z.slotPx;
+  const slotPx = (z.slotHours / 24) * dayPx;
   const pxPerHour = dayPx / 24;
   const timelinePx = dayPx * dayCount;
   const todayLeft = todayInRange ? todayIndex * dayPx : -dayPx;
   const days = eachDay(weekStart, dayCount);
-  const slots = fitted ? [] : eachSlot(weekStart, zoom, dayCount);
+  const slots = showTimes ? eachSlot(weekStart, zoom, dayCount) : [];
   const sheetStyle = {
-    "--slot": `${fitted ? dayPx : z.slotPx}px`,
+    "--slot": `${slotPx}px`,
     "--day": `${dayPx}px`,
     "--timeline": `${timelinePx}px`,
-    "--check": zoom === "hour" ? `${z.slotPx}px` : `${dayPx}px`,
+    "--check": zoom === "hour" ? `${slotPx}px` : `${dayPx}px`,
   } as CSSProperties;
 
   const shown = useMemo(() => {
@@ -289,7 +291,7 @@ export function RosterBoard() {
         return;
       }
     } else if (windowChanged) {
-      const hours = !todayInRange ? 0 : Math.max(0, todayIndex * 24 + (fitted ? 0 : 8));
+      const hours = !todayInRange ? 0 : Math.max(0, todayIndex * 24 + (fits ? 0 : 8));
       anchorHours.current = hours;
     }
 
@@ -351,7 +353,7 @@ export function RosterBoard() {
   function goToday() {
     const el = scrollerRef.current;
     if (!el) return;
-    const hours = todayIndex * 24 + (fitted ? 0 : 8);
+    const hours = todayIndex * 24 + (fits ? 0 : 8);
     anchorHours.current = hours;
     el.scrollTo({ left: hoursToPx(hours, pxPerHour), behavior: "smooth" });
   }
@@ -556,7 +558,7 @@ export function RosterBoard() {
                       className="day-cell"
                       data-today={isToday ? "true" : "false"}
                       data-shade={index % 2 ? "b" : "a"}
-                      data-fine={fitted ? "false" : "true"}
+                      data-fine={showTimes ? "true" : "false"}
                       style={{ width: dayPx }}
                     >
                       {dayPx >= 108 ? formatDayLabel(day) : dayPx >= 64 ? formatDayLabel(day).slice(4) : String(melParts(day).day)}
@@ -758,7 +760,7 @@ function Track({
     <div className="track">
       <div className="track-bg" />
       <div className="today-wash" style={{ left: todayLeft, width: dayPx }} />
-      {zoom === "qday" || zoom === "hour" ? <div className="hour-lines" /> : null}
+      {ZOOM[zoom].slotHours < 24 ? <div className="hour-lines" /> : null}
       <div className="day-lines" />
       {children}
       {nowX != null && <div className="now" style={{ left: nowX }} />}
