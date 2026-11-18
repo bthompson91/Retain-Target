@@ -40,12 +40,13 @@ export type Department = {
   events: RosterEvent[];
 };
 
-export type Zoom = "day" | "qday" | "hour";
+export type Zoom = "day" | "week" | "qday" | "hour";
 
-export const ZOOM: Record<Zoom, { slotHours: number; slotPx: number; label: string }> = {
-  day: { slotHours: 24, slotPx: 136, label: "Day" },
-  qday: { slotHours: 6, slotPx: 92, label: "6h" },
-  hour: { slotHours: 1, slotPx: 52, label: "Hour" },
+export const ZOOM: Record<Zoom, { slotHours: number; slotPx: number; label: string; fitDays: number }> = {
+  day: { slotHours: 24, slotPx: 96, label: "2 Weeks", fitDays: 14 },
+  week: { slotHours: 24, slotPx: 160, label: "Week", fitDays: 7 },
+  qday: { slotHours: 6, slotPx: 92, label: "Day", fitDays: 0 },
+  hour: { slotHours: 1, slotPx: 52, label: "Hour", fitDays: 0 },
 };
 
 const MELBOURNE_OFFSET_MS = 11 * 60 * 60 * 1000;
@@ -168,10 +169,9 @@ export function formatSpan(start: Date, end: Date): string {
   return `${left}–${right}`;
 }
 
-export function xFor(instant: Date, origin: Date, zoom: Zoom): number {
+export function xFor(instant: Date, origin: Date, pxPerHour: number): number {
   const hours = (instant.getTime() - origin.getTime()) / HOUR_MS;
-  const z = ZOOM[zoom];
-  return (hours / z.slotHours) * z.slotPx;
+  return hours * pxPerHour;
 }
 
 export function eachDay(origin: Date, dayCount = 7): Date[] {

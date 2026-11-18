@@ -41,11 +41,10 @@ type LaidDept = {
   events: LaidEvent[];
 };
 
-const ZOOMS: Zoom[] = ["day", "qday", "hour"];
+const ZOOMS: Zoom[] = ["day", "week", "qday", "hour"];
 
-function hoursToPx(hours: number, zoom: Zoom): number {
-  const z = ZOOM[zoom];
-  return (hours / z.slotHours) * z.slotPx;
+function hoursToPx(hours: number, pxPerHour: number): number {
+  return hours * pxPerHour;
 }
 
 export function RosterBoard() {
@@ -72,6 +71,7 @@ export function RosterBoard() {
     fnComment: string;
   } | null>(null);
   const [viewPx, setViewPx] = useState({ start: 0, end: Number.POSITIVE_INFINITY });
+  const [availPx, setAvailPx] = useState(0);
 
   const fullOrigin = useMemo(() => parsed?.origin ?? startOfMelWeek(now), [parsed, now]);
   const fullDays = parsed?.dayCount ?? 7;
@@ -192,16 +192,20 @@ export function RosterBoard() {
   }, [laid, selectedId]);
 
   const z = ZOOM[zoom];
-  const dayPx = (24 / z.slotHours) * z.slotPx;
+  const fitted = z.fitDays > 0;
+  const dayPx = fitted
+    ? (availPx > 40 ? availPx : z.fitDays * z.slotPx) / z.fitDays
+    : (24 / z.slotHours) * z.slotPx;
+  const pxPerHour = dayPx / 24;
   const timelinePx = dayPx * dayCount;
   const todayLeft = todayInRange ? todayIndex * dayPx : -dayPx;
   const days = eachDay(weekStart, dayCount);
-  const slots = zoom === "day" ? [] : eachSlot(weekStart, zoom, dayCount);
+  const slots = fitted ? [] : eachSlot(weekStart, zoom, dayCount);
   const sheetStyle = {
-    "--slot": `${z.slotPx}px`,
+    "--slot": `${fitted ? dayPx : z.slotPx}px`,
     "--day": `${dayPx}px`,
     "--timeline": `${timelinePx}px`,
-    "--check": zoom === "qday" ? `${dayPx}px` : `${z.slotPx}px`,
+    "--check": zoom === "hour" ? `${z.slotPx}px` : `${dayPx}px`,
   } as CSSProperties;
 
   const shown = useMemo(() => {
@@ -212,14 +216,14 @@ export function RosterBoard() {
         ...dept,
         events: dept.events.filter((event) =>
           event.assignments.some((assignment) => {
-            const left = Math.max(0, xFor(assignment.start, weekStart, zoom));
-            const right = Math.min(timelinePx, xFor(assignment.end, weekStart, zoom));
+            const left = Math.max(0, xFor(assignment.start, weekStart, pxPerHour));
+            const right = Math.min(timelinePx, xFor(assignment.end, weekStart, pxPerHour));
             return right - left >= 1 && left < viewPx.end && right > viewPx.start;
           }),
         ),
       }))
       .filter((dept) => dept.events.length > 0);
-  }, [laid, viewPx, weekStart, zoom, timelinePx, rotated]);
+  }, [laid, viewPx, weekStart, zoom, timelinePx, rotated, pxPerHour]);
 
   function measureView() {
     const el = scrollerRef.current;
@@ -228,18 +232,36 @@ export function RosterBoard() {
     const start = el.scrollLeft;
     const width = el.clientWidth - label;
     if (width < 40) return;
+    setAvailPx((prev) => (Math.abs(prev - width) < 1 ? prev : width));
     const end = start + width;
     setViewPx((prev) => (Math.abs(prev.start - start) < 1 && Math.abs(prev.end - end) < 1 ? prev : { start, end }));
   }
 
   useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
     measureView();
+    const observer = new ResizeObserver(() => measureView());
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [parsed, zoom, weekStart, dayCount, timelinePx]);
 
+  const scaleRef = useRef({ zoom, px: pxPerHour });
+  useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    const prev = scaleRef.current;
+    if (el && prev.zoom === zoom && prev.px > 0 && Math.abs(prev.px - pxPerHour) > 0.01) {
+      const hours = el.scrollLeft / prev.px;
+      el.scrollLeft = hours * pxPerHour;
+      anchorHours.current = hours;
+    }
+    scaleRef.current = { zoom, px: pxPerHour };
+  }, [zoom, pxPerHour]);
+
   useEffect(() => {
-    const x = xFor(new Date(), weekStart, zoom);
+    const x = xFor(new Date(), weekStart, pxPerHour);
     setNowX(x >= 0 && x <= timelinePx ? x : null);
-  }, [weekStart, zoom, timelinePx]);
+  }, [weekStart, zoom, timelinePx, pxPerHour]);
 
   useEffect(() => {
     const el = scrollerRef.current;
@@ -267,12 +289,12 @@ export function RosterBoard() {
         return;
       }
     } else if (windowChanged) {
-      const hours = !todayInRange ? 0 : Math.max(0, todayIndex * 24 + (zoom === "day" ? 0 : 8));
+      const hours = !todayInRange ? 0 : Math.max(0, todayIndex * 24 + (fitted ? 0 : 8));
       anchorHours.current = hours;
     }
 
     if (anchorHours.current == null) return;
-    el.scrollLeft = hoursToPx(anchorHours.current, zoom);
+    el.scrollLeft = hoursToPx(anchorHours.current, pxPerHour);
   }, [todayIndex, todayInRange, zoom, parsed, weekStart, dayCount]);
 
   function loadFile(file: File) {
@@ -321,8 +343,7 @@ export function RosterBoard() {
   function changeZoom(next: Zoom) {
     const el = scrollerRef.current;
     if (el) {
-      const spec = ZOOM[zoom];
-      anchorHours.current = (el.scrollLeft / spec.slotPx) * spec.slotHours;
+      anchorHours.current = el.scrollLeft / pxPerHour;
     }
     setZoom(next);
   }
@@ -330,9 +351,9 @@ export function RosterBoard() {
   function goToday() {
     const el = scrollerRef.current;
     if (!el) return;
-    const hours = todayIndex * 24 + (zoom === "day" ? 0 : 8);
+    const hours = todayIndex * 24 + (fitted ? 0 : 8);
     anchorHours.current = hours;
-    el.scrollTo({ left: hoursToPx(hours, zoom), behavior: "smooth" });
+    el.scrollTo({ left: hoursToPx(hours, pxPerHour), behavior: "smooth" });
   }
 
   function toggleDept(id: string) {
@@ -356,8 +377,8 @@ export function RosterBoard() {
   }
 
   function barBox(start: Date, end: Date) {
-    const left = Math.max(0, xFor(start, weekStart, zoom));
-    const right = Math.min(timelinePx, xFor(end, weekStart, zoom));
+    const left = Math.max(0, xFor(start, weekStart, pxPerHour));
+    const right = Math.min(timelinePx, xFor(end, weekStart, pxPerHour));
     if (right - left < 1) return null;
     return { left, width: right - left };
   }
@@ -535,10 +556,10 @@ export function RosterBoard() {
                       className="day-cell"
                       data-today={isToday ? "true" : "false"}
                       data-shade={index % 2 ? "b" : "a"}
-                      data-fine={zoom === "day" ? "false" : "true"}
+                      data-fine={fitted ? "false" : "true"}
                       style={{ width: dayPx }}
                     >
-                      {formatDayLabel(day)}
+                      {dayPx >= 108 ? formatDayLabel(day) : dayPx >= 64 ? formatDayLabel(day).slice(4) : String(melParts(day).day)}
                       {isToday && dayPx > 180 ? " · Today" : ""}
                     </div>
                   );
@@ -737,7 +758,7 @@ function Track({
     <div className="track">
       <div className="track-bg" />
       <div className="today-wash" style={{ left: todayLeft, width: dayPx }} />
-      {zoom !== "day" && <div className="hour-lines" />}
+      {zoom === "qday" || zoom === "hour" ? <div className="hour-lines" /> : null}
       <div className="day-lines" />
       {children}
       {nowX != null && <div className="now" style={{ left: nowX }} />}
