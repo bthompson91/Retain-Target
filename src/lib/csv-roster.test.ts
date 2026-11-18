@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { parseRosterCsv } from "./csv-roster.ts";
+import { colorForRole } from "./role-colors.ts";
 import { edgeFor, formatClock, isoMelDay, melParts, toneForRole, windowForRange } from "./roster.ts";
 
 const csv = `Date,Start Time,End Time,Employee Roster Name,Department,Event,Function,Role
@@ -42,6 +43,12 @@ describe("parseRosterCsv", () => {
     assert.equal(toneForRole("Test and Tag"), "logistics");
     assert.equal(toneForRole("Test & Tag"), "logistics");
     assert.equal(toneForRole("AV Technician"), "av");
+    assert.equal(colorForRole("Test and Tag"), "#dd00dd");
+    assert.equal(colorForRole("Test & Tag Assist"), "#9ba4c0");
+    assert.equal(colorForRole("Warehouse"), "#f92877");
+    assert.equal(colorForRole("Audio L2"), "#ff5959");
+    assert.equal(colorForRole("RDO"), "#696969");
+    assert.equal(colorForRole("Lighting L2"), "#359aff");
   });
 
   it("rolls an overnight finish onto the next morning", () => {

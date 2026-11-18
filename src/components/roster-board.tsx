@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { parseRosterCsv, parseRosterXlsx, type ParsedRoster } from "@/lib/csv-roster";
+import { colorForRole, inkForColor } from "@/lib/role-colors";
 import {
   ZOOM,
   eachDay,
@@ -18,7 +19,6 @@ import {
   windowForRange,
   xFor,
   type Assignment,
-  type Tone,
   type Zoom,
 } from "@/lib/roster";
 
@@ -445,12 +445,12 @@ export function RosterBoard() {
                           const box = barBox(a.start, a.end);
                           if (!box) return null;
                           const on = selectedId === a.id;
+                          const color = colorForRole(a.role);
                           return (
                             <button
                               key={a.id}
                               type="button"
                               className="bar"
-                              data-tone={a.tone}
                               data-edge={edgeFor(a.employee, a.status)}
                               data-on={on ? "true" : undefined}
                               style={
@@ -458,6 +458,8 @@ export function RosterBoard() {
                                   "--i": a.lane,
                                   left: box.left,
                                   width: box.width,
+                                  background: color,
+                                  color: inkForColor(color),
                                 } as CSSProperties
                               }
                               aria-pressed={on ? true : undefined}
@@ -485,7 +487,11 @@ export function RosterBoard() {
       <footer className="detail" aria-live="polite">
         {selected ? (
           <>
-            <span className="swatch" data-tone={selected.tone as Tone} aria-hidden="true" />
+            <span
+              className="swatch"
+              style={{ background: colorForRole(selected.role) }}
+              aria-hidden="true"
+            />
             <div className="detail-copy">
               <p className="detail-name">{selected.employee}</p>
               <p className="detail-role">

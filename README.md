@@ -16,14 +16,4 @@ Each shift shows the employee, then function and role.
 
 ## Role colour
 
-| Role | Colour |
-| --- | --- |
-| Audio | Red |
-| Vision, DES | Green |
-| Lighting | Blue |
-| Warehouse, driver, loader, test and tag | Purple |
-| Technical director | Grey |
-| Camera | Teal |
-| AV | Light yellow |
-| Cancelled shift, RDO | Dark grey |
-| Anything else | White |
+Each role uses its TimeTarget colour key, not a department-wide colour. Unlisted roles fall back to the nearest group colour.
