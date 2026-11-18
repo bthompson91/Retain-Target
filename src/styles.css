@@ -262,6 +262,7 @@
 .corner {
   z-index: 2;
   display: flex;
+  flex-direction: column;
   align-items: stretch;
   justify-content: flex-end;
   background: #e6e6e6;
@@ -272,12 +273,15 @@
 }
 
 .fold-all {
+  width: 100%;
   height: 1.75rem;
+  padding: 0 0.65rem;
   border: 1px solid #8d8d8d;
   background: #f4f4f4;
   color: #1c1c1c;
   font-size: 0.75rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .fold-all:disabled {

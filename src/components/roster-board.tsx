@@ -401,8 +401,8 @@ export function RosterBoard() {
               </button>
             ))}
           </div>
-          <label className="file-btn" title={parsed?.fileName ?? "Upload a TimeTarget Excel or CSV"}>
-            Upload
+          <label className="file-btn" title={parsed?.fileName ?? "Open a TimeTarget Excel or CSV on this computer. Nothing is uploaded."}>
+            Open file
             <input
               type="file"
               accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
