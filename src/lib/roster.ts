@@ -187,7 +187,7 @@ export function toneForRole(role: string): Tone {
   const r = role.toLowerCase();
   if (/cancelled\s+shift/.test(r) || /\brdo\b/.test(r)) return "cancelled";
   if (/\btechnical director\b|\btech director\b|\btd\b/.test(r)) return "director";
-  if (/\bwarehouse\b|\bdriver\b|\bloader\b|\bvan\b|\btruck\b/.test(r)) return "logistics";
+  if (/\bwarehouse\b|\bdriver\b|\bloader\b|\bvan\b|\btruck\b|\btest\s*(?:and|&)\s*tag\b/.test(r)) return "logistics";
   if (/\bcamera\b|\bcam\b/.test(r)) return "camera";
   if (/\bdes\b/.test(r)) return "vision";
   if (/\baudio\b|\ba1\b|\ba2\b|\ba3\b|\brf\b|\bsound\b/.test(r)) return "audio";

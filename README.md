@@ -21,7 +21,7 @@ Each shift shows the employee, then function and role.
 | Audio | Red |
 | Vision, DES | Green |
 | Lighting | Blue |
-| Warehouse, driver, loader | Purple |
+| Warehouse, driver, loader, test and tag | Purple |
 | Technical director | Grey |
 | Camera | Teal |
 | AV | Light yellow |

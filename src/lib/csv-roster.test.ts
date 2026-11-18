@@ -39,6 +39,8 @@ describe("parseRosterCsv", () => {
     assert.equal(toneForRole("Vision L2"), "vision");
     assert.equal(toneForRole("Lighting L2"), "lighting");
     assert.equal(toneForRole("Driver MR"), "logistics");
+    assert.equal(toneForRole("Test and Tag"), "logistics");
+    assert.equal(toneForRole("Test & Tag"), "logistics");
     assert.equal(toneForRole("AV Technician"), "av");
   });
 
