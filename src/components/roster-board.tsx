@@ -22,7 +22,7 @@ import {
   type Zoom,
 } from "@/lib/roster";
 
-type LaidAssignment = Assignment & { lane: number };
+type LaidAssignment = Assignment & { lane: number; eventName: string };
 
 type LaidEvent = {
   id: string;
@@ -55,6 +55,7 @@ export function RosterBoard() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
+  const [rotated, setRotated] = useState(false);
   const [tip, setTip] = useState<{
     left: number;
     top: number;
@@ -90,35 +91,66 @@ export function RosterBoard() {
     const endMs = startMs + dayCount * 86_400_000;
     let visibleCount = 0;
     const laid: LaidDept[] = [];
-    for (const dept of roster) {
+    const pack = (
+      id: string,
+      name: string,
+      dept: string,
+      assignments: Array<Assignment & { eventName: string }>,
+    ): LaidEvent | null => {
+      if (!assignments.length) return null;
+      visibleCount += assignments.length;
+      const lanes = packLanes(assignments.map((a) => ({ start: a.start.getTime(), end: a.end.getTime() })));
+      const laneCount = lanes.length ? Math.max(...lanes) + 1 : 1;
+      return {
+        id,
+        name,
+        dept,
+        laneCount,
+        assignments: assignments.map((a, i) => ({ ...a, lane: lanes[i] ?? 0 })),
+      };
+    };
+    const departments = [...roster].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    for (const dept of departments) {
       const events: LaidEvent[] = [];
-      for (const event of dept.events) {
-        const assignments = event.assignments.filter(
-          (a) => a.end.getTime() > startMs && a.start.getTime() < endMs,
-        );
-        if (!assignments.length) continue;
-        visibleCount += assignments.length;
-        const lanes = packLanes(assignments.map((a) => ({ start: a.start.getTime(), end: a.end.getTime() })));
-        const laneCount = lanes.length ? Math.max(...lanes) + 1 : 1;
-        events.push({
-          id: event.id,
-          name: event.name,
-          dept: dept.name,
-          laneCount,
-          assignments: assignments.map((a, i) => ({ ...a, lane: lanes[i] ?? 0 })),
-        });
+      if (rotated) {
+        const byPerson = new Map<string, Array<Assignment & { eventName: string }>>();
+        for (const event of dept.events) {
+          for (const assignment of event.assignments) {
+            if (assignment.end.getTime() <= startMs || assignment.start.getTime() >= endMs) continue;
+            const list = byPerson.get(assignment.employee) ?? [];
+            list.push({ ...assignment, eventName: event.name });
+            byPerson.set(assignment.employee, list);
+          }
+        }
+        for (const name of [...byPerson.keys()].sort((a, b) => {
+          const openA = /^unassigned$/i.test(a);
+          const openB = /^unassigned$/i.test(b);
+          if (openA !== openB) return openA ? 1 : -1;
+          return a.localeCompare(b, undefined, { sensitivity: "base" });
+        })) {
+          const row = pack(`${dept.id}\u0000${name}`, name, dept.name, byPerson.get(name) ?? []);
+          if (row) events.push(row);
+        }
+      } else {
+        for (const event of dept.events) {
+          const assignments = event.assignments
+            .filter((a) => a.end.getTime() > startMs && a.start.getTime() < endMs)
+            .map((a) => ({ ...a, eventName: event.name }));
+          const row = pack(event.id, event.name, dept.name, assignments);
+          if (row) events.push(row);
+        }
       }
       if (events.length) laid.push({ id: dept.id, name: dept.name, events });
     }
     return { laid, visibleCount };
-  }, [roster, weekStart, dayCount]);
+  }, [roster, weekStart, dayCount, rotated]);
 
   const selected = useMemo(() => {
     if (!selectedId) return null;
     for (const dept of laid) {
       for (const event of dept.events) {
         const hit = event.assignments.find((a) => a.id === selectedId);
-        if (hit) return { ...hit, event: event.name, dept: dept.name };
+        if (hit) return { ...hit, event: hit.eventName, dept: dept.name };
       }
     }
     return null;
@@ -358,6 +390,14 @@ export function RosterBoard() {
           <button type="button" className="today-btn" onClick={goToday}>
             Today
           </button>
+          <button
+            type="button"
+            className="rotate-btn"
+            aria-pressed={rotated}
+            onClick={() => setRotated((on) => !on)}
+          >
+            Rotate
+          </button>
         </div>
       </header>
 
@@ -457,6 +497,8 @@ export function RosterBoard() {
                           if (!box) return null;
                           const on = selectedId === a.id;
                           const color = colorForRole(a.role);
+                          const head = rotated ? a.eventName : a.employee;
+                          const meta = a.fn ? `${a.fn} · ${a.role}` : a.role;
                           return (
                             <button
                               key={a.id}
@@ -474,15 +516,15 @@ export function RosterBoard() {
                                 } as CSSProperties
                               }
                               aria-pressed={on ? true : undefined}
-                              aria-label={`${a.employee}, ${a.fn}, ${a.role}`}
+                              aria-label={rotated ? `${a.eventName}, ${meta}` : `${a.employee}, ${meta}`}
                               onMouseEnter={(event) => showTip(event.currentTarget, a.comment, a.fnComment)}
                               onFocus={(event) => showTip(event.currentTarget, a.comment, a.fnComment)}
                               onMouseLeave={() => setTip(null)}
                               onBlur={() => setTip(null)}
                               onClick={() => setSelectedId(on ? null : a.id)}
                             >
-                              <span className="bar-name">{a.employee}</span>
-                              <span className="bar-meta">{a.fn ? `${a.fn} · ${a.role}` : a.role}</span>
+                              <span className="bar-name">{head}</span>
+                              <span className="bar-meta">{meta}</span>
                             </button>
                           );
                         })}
