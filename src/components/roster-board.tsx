@@ -255,6 +255,12 @@ export function RosterBoard() {
     setClosed((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  function toggleAll() {
+    const ids = laid.map((dept) => dept.id);
+    const allClosed = ids.length > 0 && ids.every((id) => closed.includes(id));
+    setClosed(allClosed ? [] : ids);
+  }
+
   function barBox(start: Date, end: Date) {
     const left = Math.max(0, xFor(start, weekStart, zoom));
     const right = Math.min(timelinePx, xFor(end, weekStart, zoom));
@@ -365,7 +371,16 @@ export function RosterBoard() {
       >
         <div className="sheet" style={sheetStyle}>
           <div className="head">
-            <div className="corner">Events</div>
+            <div className="corner">
+              <button
+                type="button"
+                className="fold-all"
+                onClick={toggleAll}
+                disabled={!laid.length}
+              >
+                {laid.length > 0 && laid.every((dept) => closed.includes(dept.id)) ? "Expand all" : "Collapse all"}
+              </button>
+            </div>
             <div className="head-time">
               <div className="day-row">
                 {days.map((day, index) => {

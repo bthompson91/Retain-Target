@@ -10,7 +10,7 @@
   --color-paper: #f3f0ea;
   --color-panel: #f7f4ef;
   --color-header: #e7e1d8;
-  --color-dept: #ddd6cc;
+  --color-dept: #e2e2e2;
   --color-today: #9dc3ee;
   --color-check-a: #f6f4f0;
   --color-check-b: #e3dfd8;
@@ -249,20 +249,32 @@
   z-index: 5;
   width: var(--label);
   flex: none;
-  box-shadow: 1px 0 0 var(--color-line);
+  box-shadow: 1px 0 0 #c6c6c6;
 }
 
 .corner {
   z-index: 2;
   display: flex;
-  align-items: flex-end;
-  background: var(--color-header);
-  padding: 0 0.6rem 0.35rem;
-  color: var(--color-muted);
-  font-size: 0.6875rem;
+  align-items: stretch;
+  justify-content: flex-end;
+  background: #e6e6e6;
+  padding: 0.35rem;
+  color: #3a3a3a;
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+}
+
+.fold-all {
+  height: 1.75rem;
+  border: 1px solid #8d8d8d;
+  background: #f4f4f4;
+  color: #1c1c1c;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.fold-all:disabled {
+  opacity: 0.45;
 }
 
 .head-time {
@@ -373,7 +385,7 @@
 }
 
 .dept-label:hover {
-  background: color-mix(in srgb, var(--color-dept) 78%, var(--color-ink));
+  background: #d4d4d4;
 }
 
 .twisty {
@@ -383,8 +395,8 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color-ink);
-  background: var(--color-paper);
+  border: 1px solid #8a8a8a;
+  background: #f7f7f7;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   line-height: 1;
@@ -409,7 +421,7 @@
   align-items: flex-start;
   height: 100%;
   padding: 0.4rem 0.55rem 0 1.85rem;
-  background: var(--color-panel);
+  background: #f0f0f0;
 }
 
 .event-name {
