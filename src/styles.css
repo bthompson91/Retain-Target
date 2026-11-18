@@ -445,9 +445,9 @@
   background-image: repeating-linear-gradient(
     to right,
     var(--color-check-a) 0,
-    var(--color-check-a) var(--slot),
-    var(--color-check-b) var(--slot),
-    var(--color-check-b) calc(var(--slot) * 2)
+    var(--color-check-a) var(--check, var(--slot)),
+    var(--color-check-b) var(--check, var(--slot)),
+    var(--color-check-b) calc(var(--check, var(--slot)) * 2)
   );
 }
 

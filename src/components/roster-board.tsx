@@ -177,6 +177,7 @@ export function RosterBoard() {
     "--slot": `${z.slotPx}px`,
     "--day": `${dayPx}px`,
     "--timeline": `${timelinePx}px`,
+    "--check": zoom === "qday" ? `${dayPx}px` : `${z.slotPx}px`,
   } as CSSProperties;
 
   const shown = useMemo(() => {
