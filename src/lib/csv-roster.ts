@@ -297,20 +297,37 @@ export function parseRosterXlsx(data: ArrayBuffer, fileName = "roster.xlsx"): Pa
 function excelCell(value: unknown): string {
   if (value == null || value === false) return "";
   if (value instanceof Date) {
-    const year = value.getUTCFullYear();
-    const month = String(value.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(value.getUTCDate()).padStart(2, "0");
+    // SheetJS builds these Dates at local midnight for a date-only
+    // cell (and local time for a time-only cell): the file carries no
+    // timezone, so the civil fields must be read back in local time.
+    // UTC getters moved every Melbourne date a day earlier (16 Nov
+    // read as 15 Nov) and turned 08:30 into 22:30.
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
     if (year < 1905) {
-      return `${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`;
+      return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
     }
     return `${year}-${month}-${day}`;
   }
-  if (typeof value === "number" && value > 20000 && value < 80000) {
-    const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86_400_000);
-    const year = utc.getUTCFullYear();
-    const month = String(utc.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(utc.getUTCDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+  if (typeof value === "number") {
+    // A time-only cell with no date format comes back as a bare
+    // fraction of a day (08:30 = 0.354...); without this it became
+    // the string "0.3541666667", no clock could parse it, and the
+    // whole row was skipped.
+    if (value >= 0 && value < 1) {
+      const minutes = Math.round(value * 1440) % 1440;
+      return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+    }
+    if (value > 20000 && value < 80000) {
+      // Floor, not round: a date-time serial's fraction is a time of
+      // day, and rounding it pushed 16 Nov 14:30 onto 17 Nov.
+      const utc = new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * 86_400_000);
+      const year = utc.getUTCFullYear();
+      const month = String(utc.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(utc.getUTCDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
   }
   return String(value).replace(/\r\n/g, "\n").trim();
 }

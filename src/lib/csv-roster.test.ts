@@ -108,6 +108,40 @@ not-a-date,14:00,18:00,Alex Example,VIC-Example,1001 - Sample,Set Up,Audio L2
 });
 
 describe("parseRosterXlsx", () => {
+  it("keeps real Excel serial dates and fractional times on the file's own day", () => {
+    // A real Retain export stores a date-only cell as a serial integer
+    // (46342 = 16 Nov 2026) and times as fractions of a day — there is
+    // no timezone in the file. SheetJS hands formatted cells back as
+    // Dates at local midnight, so reading them with UTC getters moved
+    // every shift a day earlier (16 Nov -> 15 Nov) and turned 08:30
+    // into 22:30. Unformatted times came back as bare fractions and
+    // the rows were skipped outright. Both shapes are covered here:
+    // row 2 carries date/time formats, row 3 carries none.
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ["Date", "Start Time", "End Time", "Employee Roster Name", "Department", "Event", "Function", "Role"],
+      [46342, 8.5 / 24, 12 / 24, "Alex Example", "VIC-Example", "1001 - Sample Event", "Set Up", "Audio L2"],
+      [46342, 8.5 / 24, 12 / 24, "Sam Example", "VIC-Example", "1001 - Sample Event", "Set Up", "Audio L2"],
+    ]);
+    sheet["A2"].z = "dd/mm/yyyy";
+    sheet["B2"].z = "h:mm";
+    sheet["C2"].z = "h:mm";
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Roster");
+    const bytes = XLSX.write(book, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    const roster = parseRosterXlsx(bytes, "export.xlsx");
+    const shifts = roster.departments.flatMap((dept) =>
+      dept.events.flatMap((event) => event.assignments),
+    );
+    assert.equal(shifts.length, 2);
+    assert.equal(isoMelDay(roster.origin), "2026-11-16");
+    for (const shift of shifts) {
+      assert.equal(melParts(shift.start).day, 16);
+      assert.equal(melParts(shift.start).month, 10);
+      assert.equal(formatClock(shift.start), "08:30");
+      assert.equal(formatClock(shift.end), "12:00");
+    }
+  });
+
   it("reads roster names, status, comments and function comments from the wide export", () => {
     const sheet = XLSX.utils.aoa_to_sheet([
       [
@@ -129,7 +163,11 @@ describe("parseRosterXlsx", () => {
       [
         "Christopher Ruffles",
         "Chris Ruffles",
-        new Date(Date.UTC(2026, 10, 16)),
+        // Real date-only cell: the Excel serial for 16 Nov 2026, with
+        // a date format, the way Retain writes it — not a JS Date at
+        // UTC midnight, which is 4pm the previous day west of UTC and
+        // only passed before because the old code read UTC fields.
+        46342,
         "08:30:00",
         "12:00:00",
         "Unconfirmed",
@@ -143,6 +181,7 @@ describe("parseRosterXlsx", () => {
         "{7CFAE39E-E5ED-4F5D-B490-5260AFF82D4B}",
       ],
     ]);
+    sheet["C2"].z = "dd/mm/yyyy";
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, sheet, "Roster");
     const bytes = XLSX.write(book, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
